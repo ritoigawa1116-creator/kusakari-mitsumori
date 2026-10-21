@@ -72,12 +72,22 @@ button{cursor:pointer}
 .tab{flex:1 1 auto;overflow:auto;padding:14px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));display:grid;gap:14px;align-content:start}
 h2{font-size:13px;letter-spacing:.06em;color:var(--muted);margin:0;font-weight:700}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.big{min-height:52px;border-radius:10px;border:2px solid;font-weight:700;background:var(--panel);display:flex;align-items:center;justify-content:center;gap:8px;padding:4px 8px;text-align:center}
+.big{width:100%;min-height:52px;border-radius:10px;border:2px solid;font-weight:700;background:var(--panel);display:flex;align-items:center;justify-content:center;gap:8px;padding:4px 8px;text-align:center}
 .big.cut{border-color:#c9a700}
 .big.ex{border-color:var(--ex)}
 .sw{width:14px;height:14px;border-radius:3px;flex:none}
 .sw.cut{background:var(--cut)} .sw.ex{background:var(--ex)}
 
+.stepper{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.stepper li{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;color:var(--muted);text-align:center}
+.stepper .dot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;border:2px solid var(--line);background:var(--panel)}
+.stepper li.now{color:var(--fg);font-weight:700}
+.stepper li.now .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.stepper li.done .dot{border-color:var(--accent);color:var(--accent)}
+.nav{display:grid;grid-template-columns:auto 1fr;gap:8px}
+.nav .next{min-height:50px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-fg);font-weight:700;font-size:16px}
+.nav .next:disabled{opacity:.35}
+.nav .back{min-height:50px;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:none;font-weight:700}
 .list{display:grid;gap:8px}
 .item{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:8px}
 .item .top{display:flex;align-items:center;gap:8px}
@@ -224,6 +234,8 @@ function area(pts){
 }
 
 function newShape(kind){
+  if(kind==="cut" && step!==1) return;
+  if(kind==="ex" && step!==2) return;
   if(drawing) cancelDraw();
   const n = shapes.filter(s=>s.kind===kind).length + 1;
   const s = {id:++seq, kind, name:(kind==="cut"?"刈る範囲 ":"除外 ")+n, pts:[], slope:0, closed:false, layer:null, markers:[], edges:[]};
@@ -383,44 +395,72 @@ function renderDrawbar(){
   $("#b-done").disabled = n < 3;
 }
 
+let step = 1;
+const STEPS = ["刈る範囲", "建物を除く", "法面", "見積"];
+function cutDone(){ return shapes.some(s=>s.kind==="cut" && s.closed); }
+function goStep(n){
+  if(drawing) cancelDraw();
+  if(n >= 2 && !cutDone()) n = 1;
+  if(n === 4){ step = 4; renderAll(); showTab("est"); return; }
+  step = n; renderAll();
+}
+function itemHtml(s){
+  const a = area(s.pts);
+  return `<div class="item">
+    <div class="top"><span class="sw ${s.kind}"></span><span class="name">${s.name}</span>
+      <span class="ar num">${fmt(a)}㎡</span>
+      <button type="button" class="x" data-act="del" data-id="${s.id}" aria-label="${s.name}を削除">✕</button></div>
+    <div class="sub num">${fmt1(a/TSUBO)}坪${s.kind==="ex"?"（刈る面積から差し引き）":""}</div>
+    ${s.kind==="cut" ? `<select data-act="slope" data-id="${s.id}" aria-label="${s.name}の起伏">
+      ${SLOPES.map(o=>`<option value="${o.v}" ${o.v===s.slope?"selected":""}>${o.l}</option>`).join("")}</select>` : ""}
+  </div>`;
+}
+function stepperHtml(){
+  return `<ol class="stepper">` + STEPS.map((t,i)=>{
+    const n = i+1, st = n < step ? "done" : n === step ? "now" : "todo";
+    return `<li class="${st}"><span class="dot">${n < step ? "✓" : n}</span><span class="t">${t}</span></li>`;
+  }).join("") + `</ol>`;
+}
 function renderMeasure(){
   const el = $("#tab-measure");
-  const done = shapes.filter(s=>s.closed);
-  let h = `
-    <div class="row2">
-      <button type="button" class="big cut" data-act="new-cut"><span class="sw cut"></span>刈る範囲を囲む</button>
-      <button type="button" class="big ex" data-act="new-ex"><span class="sw ex"></span>建物など除く</button>
-    </div>
-    <p class="hint">航空写真で敷地の角を順にタップします。点はドラッグで動かせます。家・倉庫・駐車場など刈らない所は「除く」で囲んでください。</p>
-    <h2>範囲</h2>`;
-  if(!done.length){
-    h += `<div class="empty">まだ範囲がありません。上のボタンから始めてください。</div>`;
+  const cuts = shapes.filter(s=>s.kind==="cut" && s.closed);
+  const exs  = shapes.filter(s=>s.kind==="ex"  && s.closed);
+  let h = stepperHtml();
+  if(step === 1){
+    h += `<h2>ステップ1　刈る範囲を囲む</h2>
+      <p class="hint">航空写真で敷地の角を順にタップし、「完了」を押します。点はドラッグで動かせます。離れた場所が複数あれば、もう一度押して追加できます。</p>
+      <button type="button" class="big cut" data-act="new-cut"><span class="sw cut"></span>${cuts.length ? "刈る範囲をもう1つ囲む" : "刈る範囲を囲む"}</button>`;
+    h += cuts.length ? `<div class="list">${cuts.map(itemHtml).join("")}</div>` : `<div class="empty">まだ囲んでいません。</div>`;
+    h += `<div class="nav"><span></span>
+      <button type="button" class="next" data-act="step" data-to="2" ${cuts.length ? "" : "disabled"}>次へ：建物を除く</button></div>
+      ${cuts.length ? "" : `<p class="hint">刈る範囲を1つ以上囲むと次へ進めます。</p>`}`;
+  }else if(step === 2){
+    h += `<h2>ステップ2　建物など刈らない所を除く</h2>
+      <p class="hint">家・倉庫・駐車場・畑など、刈らない所を囲みます。囲んだ分は自動で差し引かれます。</p>
+      <button type="button" class="big ex" data-act="new-ex"><span class="sw ex"></span>${exs.length ? "除く所をもう1つ囲む" : "除く所を囲む"}</button>`;
+    h += exs.length ? `<div class="list">${exs.map(itemHtml).join("")}</div>` : "";
+    h += `<div class="nav"><button type="button" class="back" data-act="step" data-to="1">戻る</button>
+      <button type="button" class="next" data-act="step" data-to="3">${exs.length ? "次へ：法面" : "除く所はない → 次へ"}</button></div>`;
   }else{
-    h += `<div class="list">` + done.map(s => {
-      const a = area(s.pts);
-      return `<div class="item">
-        <div class="top"><span class="sw ${s.kind}"></span><span class="name">${s.name}</span>
-          <span class="ar num">${fmt(a)}㎡</span>
-          <button type="button" class="x" data-act="del" data-id="${s.id}" aria-label="${s.name}を削除">✕</button></div>
-        <div class="sub num">${fmt1(a/TSUBO)}坪${s.kind==="ex"?"（刈る面積から差し引き）":""}</div>
-        ${s.kind==="cut" ? `<select data-act="slope" data-id="${s.id}" aria-label="${s.name}の起伏">
-          ${SLOPES.map(o=>`<option value="${o.v}" ${o.v===s.slope?"selected":""}>${o.l}</option>`).join("")}</select>` : ""}
-      </div>`;
-    }).join("") + `</div>`;
+    h += `<h2>ステップ3　法面・土手（地図では測れない斜面）</h2>
+      <p class="hint">斜面の「長さ」と、上から下までの「斜面の幅」を入力します（歩測やメジャーで）。</p>
+      <div class="list">` + norms.map(n => {
+        const a = (parseFloat(n.len)||0)*(parseFloat(n.w)||0);
+        return `<div class="norm">
+          <input type="number" inputmode="decimal" min="0" step="0.5" id="nl-${n.id}" value="${n.len}" placeholder="長さ" data-act="norm" data-f="len" data-id="${n.id}" aria-label="長さ(m)">
+          <span class="u">m ×</span>
+          <input type="number" inputmode="decimal" min="0" step="0.5" id="nw-${n.id}" value="${n.w}" placeholder="幅" data-act="norm" data-f="w" data-id="${n.id}" aria-label="斜面の幅(m)">
+          <span class="ar num" id="na-${n.id}">${fmt(a)}㎡</span>
+          <button type="button" class="x" data-act="del-norm" data-id="${n.id}" aria-label="法面を削除">✕</button>
+        </div>`;
+      }).join("") + `<button type="button" class="add" data-act="add-norm">＋ 法面を追加</button></div>
+      <div class="nav"><button type="button" class="back" data-act="step" data-to="2">戻る</button>
+        <button type="button" class="next" data-act="step" data-to="4">${norms.length ? "次へ：見積" : "法面はない → 見積へ"}</button></div>`;
+    if(step === 4){
+      h += `<p class="hint">見積は「見積」タブに出ています。範囲を直すときは「戻る」で前のステップへ。</p>`;
+    }
   }
-  h += `<h2>法面・土手（地図では測れない斜面）</h2>
-    <p class="hint">斜面の「長さ」と、上から下までの「斜面の幅」を入力します（歩測やメジャーで）。</p>
-    <div class="list">` + norms.map(n => {
-      const a = (parseFloat(n.len)||0)*(parseFloat(n.w)||0);
-      return `<div class="norm">
-        <input type="number" inputmode="decimal" min="0" step="0.5" id="nl-${n.id}" value="${n.len}" placeholder="長さ" data-act="norm" data-f="len" data-id="${n.id}" aria-label="長さ(m)">
-        <span class="u">m ×</span>
-        <input type="number" inputmode="decimal" min="0" step="0.5" id="nw-${n.id}" value="${n.w}" placeholder="幅" data-act="norm" data-f="w" data-id="${n.id}" aria-label="斜面の幅(m)">
-        <span class="ar num" id="na-${n.id}">${fmt(a)}㎡</span>
-        <button type="button" class="x" data-act="del-norm" data-id="${n.id}" aria-label="法面を削除">✕</button>
-      </div>`;
-    }).join("") + `<button type="button" class="add" data-act="add-norm">＋ 法面を追加</button></div>
-    <button type="button" class="add" data-act="reset" style="margin-top:6px">新しい現場にする（全部消す）</button>`;
+  h += `<button type="button" class="add" data-act="reset" style="margin-top:6px">新しい現場にする（全部消す）</button>`;
   el.innerHTML = h;
 }
 
@@ -510,13 +550,14 @@ document.addEventListener("click", e => {
   const act = t.dataset.act, id = +t.dataset.id;
   if(act==="new-cut") newShape("cut");
   else if(act==="new-ex") newShape("ex");
-  else if(act==="del"){ const s = shapes.find(x=>x.id===id); if(s){ removeShape(s); renderAll(); } }
+  else if(act==="del"){ const s = shapes.find(x=>x.id===id); if(s){ removeShape(s); if(!cutDone()) step = 1; renderAll(); } }
+  else if(act==="step"){ goStep(+t.dataset.to); }
   else if(act==="add-norm"){ norms.push({id:++seq, len:"", w:""}); renderAll(); const i = $("#nl-"+seq); if(i) i.focus(); }
   else if(act==="del-norm"){ norms = norms.filter(n=>n.id!==id); renderAll(); }
   else if(act==="reset"){
     if(!confirm("この現場の範囲と法面をすべて消します。よろしいですか？")) return;
     if(drawing) cancelDraw();
-    shapes.slice().forEach(removeShape); norms = []; job = {grass:1.0, disposal:true}; renderAll();
+    shapes.slice().forEach(removeShape); norms = []; job = {grass:1.0, disposal:true}; step = 1; renderAll(); showTab("measure");
   }
 });
 document.addEventListener("change", e => {
