@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#24461f">
+<title>不用品処分見積</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap">
+<style>
+/* Layout: one centered column (max 640px) for phone and iPad; numbered steps because the order is enforced; dark-green band at the bottom carries the running total. */
+:root{
+  --bg:#eef1ea; --panel:#ffffff; --fg:#1b2318; --muted:#5a6655; --line:#d3dacd;
+  --accent:#24461f; --accent-fg:#ffffff; --soft:#e3eadd; --pick:#ffd400; --pick-bg:#fff8cc;
+  --warn:#b4232f; --warn-bg:#fde8ea;
+  --band:#24461f; --band-fg:#ffffff; --band-num:#ffe14d;
+  --font:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121610; --panel:#1b2119; --fg:#e8eee3; --muted:#9aa693; --line:#323b2e;
+  --accent:#7fbf6a; --accent-fg:#0f160d; --soft:#253021; --pick-bg:#3a3510;
+  --warn:#ff7c86; --warn-bg:#3a1a1d; --band:#0d140b; --band-fg:#e8eee3; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121610; --panel:#1b2119; --fg:#e8eee3; --muted:#9aa693; --line:#323b2e;
+  --accent:#7fbf6a; --accent-fg:#0f160d; --soft:#253021; --pick-bg:#3a3510;
+  --warn:#ff7c86; --warn-bg:#3a1a1d; --band:#0d140b; --band-fg:#e8eee3; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--pick);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+header.top{background:var(--band);color:var(--band-fg);padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+header.top .in{max-width:640px;margin:0 auto}
+header.top h1{font-size:17px;margin:0 0 6px}
+.tabs{display:flex;gap:4px}
+.tabs button{height:42px;padding:0 16px;border:0;background:none;color:var(--band-fg);opacity:.7;font-weight:700;border-bottom:3px solid transparent}
+.tabs button[aria-selected="true"]{opacity:1;border-bottom-color:var(--band-num)}
+
+main{max-width:640px;margin:0 auto;padding-block:16px 120px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.page{display:grid;gap:16px}
+h2{font-size:18px;margin:0;text-wrap:balance}
+h3{font-size:13px;letter-spacing:.06em;color:var(--muted);margin:4px 0 0}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:10px}
+
+.stepper{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.stepper li{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;color:var(--muted);text-align:center}
+.stepper .dot{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:700;border:2px solid var(--line);background:var(--panel)}
+.stepper li.now{color:var(--fg);font-weight:700}
+.stepper li.now .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.stepper li.done .dot{border-color:var(--accent);color:var(--accent)}
+
+.loads{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.load{border:2px solid var(--line);border-radius:12px;background:var(--panel);padding:10px;display:grid;gap:4px;text-align:left}
+.load[aria-pressed="true"]{border-color:var(--pick);background:var(--pick-bg)}
+.load .t{font-weight:700;font-size:16px}
+.load .p{font-weight:700}
+.load .g{font-size:12px;color:var(--muted)}
+.load svg{width:100%;max-width:120px;height:auto}
+
+.ctr{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.ctr:last-child{border-bottom:0}
+.ctr .l{min-width:0}
+.ctr .l small{display:block;color:var(--muted);font-size:12px}
+.ctr .c{display:flex;align-items:center;gap:6px}
+.ctr .c button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--soft);font-size:20px;font-weight:700}
+.ctr .c .n{min-width:28px;text-align:center;font-weight:700;font-size:18px}
+.chk{display:flex;gap:10px;align-items:center;min-height:46px;border-bottom:1px solid var(--line)}
+.chk:last-child{border-bottom:0}
+.chk input{width:24px;height:24px;flex:none}
+.chk span{flex:1}
+.chk small{color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{min-height:40px;padding:0 12px;border-radius:20px;border:1px solid var(--line);background:var(--panel);font-weight:700;font-size:14px}
+.chip[aria-pressed="true"]{background:var(--pick-bg);border-color:var(--pick)}
+.warnbox{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px;font-weight:700;font-size:14px}
+
+.cand{border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;grid-template-columns:96px 1fr;gap:10px;background:var(--panel)}
+.cand img{width:96px;height:96px;object-fit:cover;border-radius:8px;max-width:100%}
+.cand .r{display:grid;gap:6px;min-width:0}
+.cand select,.cand input[type=text]{width:100%;height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel)}
+.cand .top{display:flex;gap:6px;align-items:center}
+.cand .verdict{font-size:13px;font-weight:700}
+.cand .verdict.ok{color:var(--accent)}
+.cand .verdict.no{color:var(--muted)}
+.x{width:40px;height:40px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--muted);flex:none}
+
+.btn{min-height:50px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-weight:700;padding:0 14px}
+.btn.main{border:0;background:var(--accent);color:var(--accent-fg);font-size:16px}
+.btn.dash{border-style:dashed;border-color:var(--muted);background:none}
+.btn:disabled{opacity:.35}
+.nav{display:grid;grid-template-columns:auto 1fr;gap:8px}
+
+table.bd{width:100%;border-collapse:collapse;font-size:14px}
+table.bd td{padding:8px 0;border-bottom:1px solid var(--line);vertical-align:top}
+table.bd td:last-child{text-align:right;white-space:nowrap;padding-left:8px}
+table.bd tr.tot td{font-weight:700;font-size:16px;border-bottom:0}
+table.bd tr.minus td:last-child{color:var(--accent);font-weight:700}
+
+.set{display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center}
+.set input{height:42px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel);text-align:right;width:100%}
+.buyrow{display:grid;grid-template-columns:1fr 100px auto;gap:6px;align-items:center}
+.buyrow input{height:42px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel);width:100%;min-width:0}
+.buyrow input[type=number]{text-align:right}
+
+#summary{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--band);color:var(--band-fg);padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+#summary .in{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:12px}
+#summary .s{flex:1;min-width:0}
+#summary .k{font-size:11px;opacity:.8;letter-spacing:.05em}
+#summary .v{font-size:22px;font-weight:700;color:var(--band-num);line-height:1.2}
+#summary button{height:46px;padding:0 14px;border:2px solid var(--band-num);border-radius:10px;background:none;color:var(--band-num);font-weight:700;flex:none}
+
+#customer{position:fixed;inset:0;z-index:50;background:var(--panel);overflow:auto;padding:calc(24px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
+#customer .wrap{max-width:640px;margin:0 auto;display:grid;gap:16px}
+#customer h1{font-size:22px;margin:0}
+#customer .price{background:var(--band);color:var(--band-fg);border-radius:12px;padding:18px}
+#customer .price .v{font-size:40px;font-weight:700;color:var(--band-num);line-height:1.2}
+#customer .note{color:var(--muted);font-size:13px;margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <h1>不用品処分・買取 見積</h1>
+  <nav class="tabs" role="tablist">
+    <button type="button" role="tab" data-tab="est" aria-selected="true">見積</button>
+    <button type="button" role="tab" data-tab="set" aria-selected="false">単価設定</button>
+  </nav>
+</div></header>
+<main>
+  <section id="page-est" class="page"></section>
+  <section id="page-set" class="page" hidden></section>
+</main>
+<footer id="summary"></footer>
+<div id="customer" hidden></div>
+<input type="file" id="cam" accept="image/*" capture="environment" hidden>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const yen = n => (n < 0 ? "−¥" : "¥") + Math.abs(Math.round(n)).toLocaleString("ja-JP");
+const sum = a => a.reduce((x,y)=>x+y,0);
+
+/* ---------- default prices (仮の値は社長が単価設定で変更) ---------- */
+const DEF = {
+  truck:{q1:12000, q2:20000, q3:28000, full:35000},
+  appl:{ac:3000, tv:4000, fr:6000, wa:5000},
+  hard:{tire:500, battery:1000, ext:2000, gas:2000, paint:500, mattress:3000},
+  cond:{floor2:3000, far:2000, dismantle:3000},
+  staff:8000, tax:true,
+  buyList:[
+    {id:1, name:"冷蔵庫（製造5年以内・動作品）", price:2000},
+    {id:2, name:"洗濯機（製造5年以内・動作品）", price:2000},
+    {id:3, name:"電動工具（動作品・1点）", price:500},
+    {id:4, name:"草刈機・チェーンソー（動作品）", price:2000}
+  ]
+};
+const LOADS = [
+  {v:0.25, k:"q1", t:"1/4", g:"家電2〜3点＋段ボール数箱"},
+  {v:0.5,  k:"q2", t:"半分", g:"単身の部屋の家財が少なめ"},
+  {v:0.75, k:"q3", t:"3/4", g:"単身の部屋ひと通り"},
+  {v:1,    k:"full", t:"1台分", g:"6畳一間の家財がいっぱい"}
+];
+const APPL = [["ac","エアコン"],["tv","テレビ"],["fr","冷蔵庫・冷凍庫"],["wa","洗濯機・衣類乾燥機"]];
+const HARD = [["tire","タイヤ（1本）"],["battery","バッテリー（1個）"],["ext","消火器（1本）"],["gas","ガスボンベ（1本）"],["paint","塗料・オイル缶（1缶）"],["mattress","マットレス・ソファ（1点）"]];
+const COND = [["floor2","2階以上からの運び出し"],["far","トラックまで20m以上離れている"],["dismantle","解体・取り外しが必要"]];
+const SPECIAL = ["ピアノ","金庫","仏壇","大型物置","その他 特に大きい物"];
+const CATS = ["家電","家具","工具・農機具","ブランド品・貴金属","骨董・美術品・着物","その他"];
+const CHECKS = [["new","製造5年以内"],["works","動作OK"],["clean","目立つ傷なし"],["acc","付属品あり"]];
+
+function loadP(){
+  try{
+    const s = JSON.parse(localStorage.getItem("fuyohin.prices")) || {};
+    return {...DEF, ...s, truck:{...DEF.truck, ...(s.truck||{})}, appl:{...DEF.appl, ...(s.appl||{})},
+      hard:{...DEF.hard, ...(s.hard||{})}, cond:{...DEF.cond, ...(s.cond||{})}, buyList:(s.buyList||DEF.buyList).map(b=>({...b}))};
+  }catch(e){ return JSON.parse(JSON.stringify(DEF)); }
+}
+function saveP(){ try{ localStorage.setItem("fuyohin.prices", JSON.stringify(P)); }catch(e){} }
+let P = loadP();
+
+function newJob(){ return {frac:null, extraFull:0, appl:{}, hard:{}, cond:{}, staff:0, special:[], buy:{}, cands:[]}; }
+let job = newJob(), step = 1, seq = 100;
+
+/* ---------- calculation ---------- */
+function fracPrice(f){ const l = LOADS.find(x=>x.v===f); return l ? P.truck[l.k] : 0; }
+function calc(){
+  const truck = fracPrice(job.frac) + job.extraFull * P.truck.full;
+  const appl = sum(APPL.map(([k])=>(job.appl[k]||0)*P.appl[k]));
+  const hard = sum(HARD.map(([k])=>(job.hard[k]||0)*P.hard[k]));
+  const cond = sum(COND.map(([k])=>job.cond[k] ? P.cond[k] : 0));
+  const staff = job.staff * P.staff;
+  let sub = Math.round((truck+appl+hard+cond+staff)/100)*100;
+  const tax = P.tax ? Math.round(sub*0.1) : 0;
+  const service = sub + tax;
+  const buy = sum(P.buyList.map(b=>(job.buy[b.id]||0)*b.price));
+  const pending = job.cands.filter(c=>candOk(c)).length;
+  return {truck, appl, hard, cond, staff, sub, tax, service, buy, pay:service-buy, pending};
+}
+function loadText(){
+  const parts = [];
+  if(job.frac) parts.push("軽トラ " + LOADS.find(l=>l.v===job.frac).t);
+  if(job.extraFull) parts.push("満載 " + job.extraFull + "台追加");
+  return parts.length ? parts.join(" ＋ ") : (job.frac===0 ? "処分なし" : "未選択");
+}
+function candOk(c){ return c.cat==="ブランド品・貴金属" || c.cat==="骨董・美術品・着物" || (c.checks.works && (c.cat!=="家電" || c.checks.new)); }
+
+/* ---------- rendering ---------- */
+const STEPS = ["量","追加料金","買取","見積"];
+function stepper(){
+  return `<ol class="stepper">` + STEPS.map((t,i)=>{
+    const n=i+1, st = n<step?"done":n===step?"now":"todo";
+    return `<li class="${st}"><span class="dot">${n<step?"✓":n}</span><span>${t}</span></li>`;
+  }).join("") + `</ol>`;
+}
+function truckSvg(level){
+  const h = 26*Math.min(level,1);
+  return `<svg viewBox="0 0 120 56" aria-hidden="true">
+    <rect x="4" y="${40-h}" width="76" height="${h}" rx="2" fill="var(--pick)"/>
+    <rect x="4" y="14" width="76" height="26" rx="2" fill="none" stroke="var(--fg)" stroke-width="2.5"/>
+    <path d="M84 40 V18 h16 l12 12 v10 z" fill="none" stroke="var(--fg)" stroke-width="2.5" stroke-linejoin="round"/>
+    <circle cx="24" cy="46" r="7" fill="var(--panel)" stroke="var(--fg)" stroke-width="2.5"/>
+    <circle cx="96" cy="46" r="7" fill="var(--panel)" stroke="var(--fg)" stroke-width="2.5"/></svg>`;
+}
+function ctr(group, k, label, price){
+  const n = (group ? job[group][k] : job[k]) || 0;
+  return `<div class="ctr"><div class="l">${label}<small class="num">1点 ${yen(price)}</small></div>
+    <div class="c"><button type="button" data-act="dec" data-g="${group||""}" data-k="${k}" aria-label="${label}を減らす">−</button>
+    <span class="n num">${n}</span>
+    <button type="button" data-act="inc" data-g="${group||""}" data-k="${k}" aria-label="${label}を増やす">＋</button></div></div>`;
+}
+
+function render(){
+  const el = $("#page-est");
+  let h = stepper();
+  if(step===1){
+    h += `<h2>1. 処分する物は軽トラ何台分？</h2>
+      <p class="hint">荷台に積んだ様子を想像して選びます。<b>迷ったら大きい方</b>を選んでください。</p>
+      <div class="loads">` + LOADS.map(l=>`
+        <button type="button" class="load" data-act="frac" data-v="${l.v}" aria-pressed="${job.frac===l.v}">
+          ${truckSvg(l.v)}<span class="t">${l.t}</span><span class="p num">${yen(P.truck[l.k])}</span><span class="g">${l.g}</span>
+        </button>`).join("") + `
+        <button type="button" class="load" data-act="frac" data-v="0" aria-pressed="${job.frac===0}">
+          ${truckSvg(0)}<span class="t">処分なし</span><span class="g">買取だけの場合</span></button>
+      </div>
+      <div class="box">${ctr(null,"extraFull","1台に乗りきらないときの追加台数（満載）",P.truck.full)}</div>
+      <div class="nav"><span></span><button type="button" class="btn main" data-act="step" data-to="2" ${job.frac===null?"disabled":""}>次へ：追加料金</button></div>
+      ${job.frac===null?`<p class="hint">量を選ぶと次へ進めます。</p>`:""}`;
+  }else if(step===2){
+    h += `<h2>2. 追加料金がかかる物・条件</h2>
+      <h3>家電リサイクル4品目（リサイクル料金＋運搬手数料）</h3>
+      <p class="hint">買い取る物はここで数えず、次の「買取」で入れてください。</p>
+      <div class="box">${APPL.map(([k,l])=>ctr("appl",k,l,P.appl[k])).join("")}</div>
+      <h3>処分しにくい物</h3>
+      <div class="box">${HARD.map(([k,l])=>ctr("hard",k,l,P.hard[k])).join("")}</div>
+      <h3>作業の条件</h3>
+      <div class="box">${COND.map(([k,l])=>`<label class="chk"><input type="checkbox" data-act="cond" data-k="${k}" ${job.cond[k]?"checked":""}><span>${l}</span><small class="num">+${yen(P.cond[k])}</small></label>`).join("")}
+        ${ctr(null,"staff","作業員の追加（人）",P.staff)}</div>
+      <h3>その場で金額を出さない物</h3>
+      <div class="chips">${SPECIAL.map(s=>`<button type="button" class="chip" data-act="special" data-v="${s}" aria-pressed="${job.special.includes(s)}">${s}</button>`).join("")}</div>
+      ${job.special.length?`<div class="warnbox">${job.special.join("・")} は別途お見積りです。写真を撮って社長に送ってください。</div>`:""}
+      <div class="nav"><button type="button" class="btn" data-act="step" data-to="1">戻る</button>
+        <button type="button" class="btn main" data-act="step" data-to="3">次へ：買取</button></div>`;
+  }else if(step===3){
+    h += `<h2>3. 買い取れる物はある？</h2>
+      <h3>決まった金額で買い取る物</h3>
+      <p class="hint">この表にある物だけ、その場で金額を出せます。条件に合うか、しっかり確認してください。</p>
+      <div class="box">${P.buyList.length ? P.buyList.map(b=>ctr("buy",b.id,b.name,b.price)).join("") : `<p class="hint">登録された品目はありません。</p>`}</div>
+      <h3>査定が必要な物（写真で社長に確認）</h3>
+      <p class="hint">金額は付けません。写真を撮り、メーカー・型番を書いて送ります。</p>
+      <div class="page">` + job.cands.map(c=>`
+        <div class="cand">
+          <img src="${c.url}" alt="査定品の写真">
+          <div class="r">
+            <div class="top"><select data-act="cat" data-id="${c.id}" aria-label="種類">
+              ${CATS.map(x=>`<option ${x===c.cat?"selected":""}>${x}</option>`).join("")}</select>
+              <button type="button" class="x" data-act="delc" data-id="${c.id}" aria-label="削除">✕</button></div>
+            <input type="text" id="memo-${c.id}" value="${esc(c.memo)}" placeholder="メーカー・型番・年式など" data-act="memo" data-id="${c.id}">
+            <div class="chips">${CHECKS.map(([k,l])=>`<button type="button" class="chip" data-act="chk" data-id="${c.id}" data-k="${k}" aria-pressed="${!!c.checks[k]}">${l}</button>`).join("")}</div>
+            <div class="verdict ${candOk(c)?"ok":"no"}">${candOk(c)?"買取の可能性あり → 社長に送る":"買取は難しそう（処分として扱う）"}</div>
+          </div>
+        </div>`).join("") + `
+        <button type="button" class="btn dash" data-act="photo">＋ 写真を撮って追加</button>
+        ${job.cands.length?`<button type="button" class="btn" data-act="share">写真と内容を送る（LINE・メールなど）</button>`:""}
+      </div>
+      <div class="nav"><button type="button" class="btn" data-act="step" data-to="2">戻る</button>
+        <button type="button" class="btn main" data-act="step" data-to="4">次へ：見積</button></div>`;
+  }else{
+    const c = calc();
+    h += `<h2>4. 見積</h2>
+      <table class="bd num">
+        ${job.frac!==0||job.extraFull?`<tr><td>処分費（${loadText()}）</td><td>${yen(c.truck)}</td></tr>`:""}
+        ${c.appl?`<tr><td>家電リサイクル品</td><td>${yen(c.appl)}</td></tr>`:""}
+        ${c.hard?`<tr><td>処分しにくい物</td><td>${yen(c.hard)}</td></tr>`:""}
+        ${c.cond?`<tr><td>作業条件の加算</td><td>${yen(c.cond)}</td></tr>`:""}
+        ${c.staff?`<tr><td>作業員追加 ${job.staff}名</td><td>${yen(c.staff)}</td></tr>`:""}
+        <tr><td>小計（100円単位）</td><td>${yen(c.sub)}</td></tr>
+        ${P.tax?`<tr><td>消費税 10%</td><td>${yen(c.tax)}</td></tr>`:""}
+        <tr><td><b>処分費用 合計</b></td><td><b>${yen(c.service)}</b></td></tr>
+        ${c.buy?`<tr class="minus"><td>買取（相殺）</td><td>−${yen(c.buy)}</td></tr>`:""}
+        <tr class="tot"><td>${c.pay>=0?"お支払い金額":"お客様へお支払いする金額"}</td><td>${yen(Math.abs(c.pay))}</td></tr>
+      </table>
+      ${job.special.length?`<div class="warnbox">別途見積：${job.special.join("・")}</div>`:""}
+      ${c.pending?`<p class="hint">査定待ちの品が ${c.pending}点 あります。買取できた場合は後日この金額から値引きします。</p>`:""}
+      <button type="button" class="btn main" data-act="cust">お客様に見せる</button>
+      <div class="nav"><button type="button" class="btn" data-act="step" data-to="3">戻る</button><span></span></div>`;
+  }
+  h += `<button type="button" class="btn dash" data-act="reset">新しい現場にする（全部消す）</button>`;
+  el.innerHTML = h;
+  renderSummary();
+}
+function esc(s){ return String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function renderSummary(){
+  const c = calc();
+  $("#summary").innerHTML = `<div class="in"><div class="s num">
+    <div class="k">${c.pay>=0?"お支払い金額"+(P.tax?"（税込）":""):"お客様へお支払い"}</div>
+    <div class="v">${yen(Math.abs(c.pay))}</div></div>
+    <button type="button" data-act="cust">お客様に見せる</button></div>`;
+}
+
+function showCustomer(){
+  const c = calc(); const d = new Date();
+  const el = $("#customer");
+  el.innerHTML = `<div class="wrap num">
+    <h1>不用品処分 お見積り</h1>
+    <p class="note">${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日</p>
+    <table class="bd">
+      <tr><td>処分する量</td><td>${loadText()}</td></tr>
+      <tr><td>処分費用${P.tax?"（税込）":""}</td><td>${yen(c.service)}</td></tr>
+      ${c.buy?`<tr class="minus"><td>買取金額（差し引き）</td><td>−${yen(c.buy)}</td></tr>`:""}
+    </table>
+    <div class="price"><div>${c.pay>=0?"お支払い金額":"お客様へお支払いする金額"}</div><div class="v">${yen(Math.abs(c.pay))}</div></div>
+    ${job.special.length?`<p class="note">${job.special.join("・")} は別途お見積りとなります。</p>`:""}
+    ${c.pending?`<p class="note">査定中の品が${c.pending}点あります。買取できた場合は、この金額から値引きします。</p>`:""}
+    <p class="note">現地で確認した概算です。実際の量や品物により変わる場合があります。</p>
+    <button type="button" class="btn main" id="close-cust">閉じる</button></div>`;
+  el.hidden = false; el.scrollTop = 0;
+  $("#close-cust").addEventListener("click", ()=>el.hidden = true);
+}
+
+function renderSet(){
+  const f = (path, label) => {
+    const [g,k] = path.split("."); const v = k ? P[g][k] : P[g];
+    return `<div class="set"><label for="s-${path}">${label}</label><input type="number" inputmode="numeric" min="0" step="100" id="s-${path}" value="${v}" data-act="price" data-path="${path}"></div>`;
+  };
+  $("#page-set").innerHTML = `
+    <p class="hint">最初に入っている金額のうち、軽トラ1台35,000円以外は仮の例です。この端末に保存されます。</p>
+    <h3>軽トラの量</h3><div class="box">${LOADS.map(l=>f("truck."+l.k, "軽トラ "+l.t)).join("")}</div>
+    <h3>家電リサイクル4品目（1台）</h3><div class="box">${APPL.map(([k,l])=>f("appl."+k,l)).join("")}</div>
+    <h3>処分しにくい物</h3><div class="box">${HARD.map(([k,l])=>f("hard."+k,l)).join("")}</div>
+    <h3>作業の条件</h3><div class="box">${COND.map(([k,l])=>f("cond."+k,l)).join("")}${f("staff","作業員の追加（1名）")}</div>
+    <label class="chk"><input type="checkbox" data-act="tax" ${P.tax?"checked":""}><span>処分費用に消費税10%を加える</span></label>
+    <h3>決まった金額で買い取る物</h3>
+    <div class="box">${P.buyList.map(b=>`<div class="buyrow">
+        <input type="text" id="bn-${b.id}" value="${esc(b.name)}" data-act="bname" data-id="${b.id}" aria-label="品目名">
+        <input type="number" inputmode="numeric" min="0" step="100" id="bp-${b.id}" value="${b.price}" data-act="bprice" data-id="${b.id}" aria-label="買取金額">
+        <button type="button" class="x" data-act="bdel" data-id="${b.id}" aria-label="削除">✕</button></div>`).join("")}
+      <button type="button" class="btn dash" data-act="badd">＋ 品目を追加</button></div>`;
+}
+
+/* ---------- events ---------- */
+function showTab(t){
+  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected", b.dataset.tab===t));
+  $("#page-est").hidden = t!=="est"; $("#page-set").hidden = t!=="set";
+  if(t==="set") renderSet(); else render();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
+
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-act]"); if(!t || t.tagName==="INPUT" || t.tagName==="SELECT") return;
+  const a = t.dataset.act;
+  if(a==="frac"){ job.frac = parseFloat(t.dataset.v); render(); }
+  else if(a==="inc"||a==="dec"){
+    const g = t.dataset.g, k = t.dataset.k, tgt = g ? job[g] : job;
+    tgt[k] = Math.max(0, (tgt[k]||0) + (a==="inc"?1:-1)); render();
+  }
+  else if(a==="special"){ const v=t.dataset.v; job.special = job.special.includes(v) ? job.special.filter(x=>x!==v) : [...job.special, v]; render(); }
+  else if(a==="step"){ const n=+t.dataset.to; if(n>=2 && job.frac===null) step=1; else step=n; render(); window.scrollTo(0,0); }
+  else if(a==="photo"){ $("#cam").click(); }
+  else if(a==="delc"){ const c = job.cands.find(x=>x.id===+t.dataset.id); if(c) URL.revokeObjectURL(c.url); job.cands = job.cands.filter(x=>x.id!==+t.dataset.id); render(); }
+  else if(a==="chk"){ const c = job.cands.find(x=>x.id===+t.dataset.id); c.checks[t.dataset.k] = !c.checks[t.dataset.k]; render(); }
+  else if(a==="share"){ shareCands(); }
+  else if(a==="cust"){ showCustomer(); }
+  else if(a==="reset"){
+    if(!confirm("この現場の入力をすべて消します。よろしいですか？")) return;
+    job.cands.forEach(c=>URL.revokeObjectURL(c.url)); job = newJob(); step = 1; render(); window.scrollTo(0,0);
+  }
+  else if(a==="badd"){ P.buyList.push({id:++seq + Date.now()%100000, name:"", price:0}); saveP(); renderSet(); }
+  else if(a==="bdel"){ P.buyList = P.buyList.filter(b=>b.id!==+t.dataset.id); saveP(); renderSet(); }
+});
+document.addEventListener("change", e => {
+  const t = e.target, a = t.dataset && t.dataset.act; if(!a) return;
+  if(a==="cond"){ job.cond[t.dataset.k] = t.checked; renderSummary(); }
+  else if(a==="cat"){ job.cands.find(x=>x.id===+t.dataset.id).cat = t.value; render(); }
+  else if(a==="tax"){ P.tax = t.checked; saveP(); renderSummary(); }
+});
+document.addEventListener("input", e => {
+  const t = e.target, a = t.dataset && t.dataset.act; if(!a) return;
+  if(a==="memo"){ job.cands.find(x=>x.id===+t.dataset.id).memo = t.value; }
+  else if(a==="price"){ const [g,k] = t.dataset.path.split("."); const v = parseFloat(t.value)||0; if(k) P[g][k]=v; else P[g]=v; saveP(); renderSummary(); }
+  else if(a==="bname"){ P.buyList.find(b=>b.id===+t.dataset.id).name = t.value; saveP(); }
+  else if(a==="bprice"){ P.buyList.find(b=>b.id===+t.dataset.id).price = parseFloat(t.value)||0; saveP(); renderSummary(); }
+});
+$("#cam").addEventListener("change", e => {
+  [...e.target.files].forEach(f => job.cands.push({id:++seq, file:f, url:URL.createObjectURL(f), cat:"家電", memo:"", checks:{}}));
+  e.target.value = ""; render();
+});
+
+async function shareCands(){
+  const lines = job.cands.map((c,i)=>`${i+1}. ${c.cat}｜${c.memo||"（メモなし）"}｜${CHECKS.filter(([k])=>c.checks[k]).map(([,l])=>l).join("・")||"確認なし"}`);
+  const text = "【買取査定のお願い】\n" + lines.join("\n");
+  const files = job.cands.map((c,i)=>new File([c.file], `査定${i+1}.${(c.file.name.split(".").pop()||"jpg")}`, {type:c.file.type||"image/jpeg"}));
+  try{
+    if(navigator.canShare && navigator.canShare({files})){ await navigator.share({files, text}); return; }
+    if(navigator.share){ await navigator.share({text}); alert("この端末では写真をまとめて送れないため、文字だけ送りました。写真は別に送ってください。"); return; }
+  }catch(err){ if(err && err.name==="AbortError") return; }
+  try{ await navigator.clipboard.writeText(text); alert("内容をコピーしました。LINEなどに貼り付けて、写真と一緒に送ってください。"); }
+  catch(e){ alert(text); }
+}
+
+render();
+</script>
+</body>
+</html>
