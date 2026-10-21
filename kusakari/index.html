@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#24461f">
+<title>草刈り面積見積</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap">
+<style>
+/* Layout: map fills the screen; phone = map on top + work panel below, iPad/PC = map left + panel right. Yellow = 刈る範囲, red = 除外 (both readable on aerial photos). */
+:root{
+  --bg:#eef1ea; --panel:#ffffff; --fg:#1b2318; --muted:#5a6655; --line:#d3dacd;
+  --accent:#24461f; --accent-fg:#ffffff; --soft:#e3eadd;
+  --cut:#ffd400; --ex:#ff3d6a; --band:#24461f; --band-fg:#ffffff; --band-num:#ffe14d;
+  --font:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121610; --panel:#1b2119; --fg:#e8eee3; --muted:#9aa693; --line:#323b2e;
+  --accent:#7fbf6a; --accent-fg:#0f160d; --soft:#253021;
+  --band:#0d140b; --band-fg:#e8eee3; --band-num:#ffe14d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121610; --panel:#1b2119; --fg:#e8eee3; --muted:#9aa693; --line:#323b2e;
+  --accent:#7fbf6a; --accent-fg:#0f160d; --soft:#253021;
+  --band:#0d140b; --band-fg:#e8eee3; --band-num:#ffe14d; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--cut);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+#app{display:flex;flex-direction:column;height:100dvh;height:100vh;height:100dvh}
+#mapwrap{position:relative;flex:1 1 55%;min-height:260px}
+#map{position:absolute;inset:0;background:#556}
+#panel{flex:0 0 auto;max-height:45dvh;display:flex;flex-direction:column;background:var(--panel);border-top:1px solid var(--line)}
+@media (min-width:820px){
+  #app{flex-direction:row}
+  #mapwrap{flex:1 1 auto}
+  #panel{width:380px;max-height:none;border-top:0;border-left:1px solid var(--line)}
+}
+
+/* search */
+#searchbar{position:absolute;z-index:1000;top:calc(10px + env(safe-area-inset-top,0px));left:max(10px,env(safe-area-inset-left,0px));right:64px;display:flex;gap:6px;max-width:440px}
+#searchbar input{flex:1;min-width:0;height:44px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:0 2px 8px #0003}
+#searchbar button{height:44px;padding:0 14px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-fg);font-weight:700;box-shadow:0 2px 8px #0003}
+#results{position:absolute;z-index:1000;top:calc(60px + env(safe-area-inset-top,0px));left:max(10px,env(safe-area-inset-left,0px));right:64px;max-width:440px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 4px 14px #0004;overflow:hidden}
+#results button{display:block;width:100%;text-align:left;padding:12px;border:0;border-bottom:1px solid var(--line);background:none}
+#results button:last-child{border-bottom:0}
+#results .none{padding:12px;color:var(--muted)}
+
+.fab{position:absolute;z-index:1000;left:max(10px,env(safe-area-inset-left,0px));bottom:12px;height:44px;padding:0 14px;border:0;border-radius:22px;background:var(--panel);color:var(--fg);font-weight:700;box-shadow:0 2px 8px #0004}
+
+/* drawing bar */
+#drawbar{position:absolute;z-index:1001;left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));bottom:8px;background:var(--panel);border-radius:10px;box-shadow:0 4px 16px #0005;padding:10px;display:grid;gap:8px}
+#drawbar .msg{font-weight:700;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+#drawbar .msg .tag{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+#drawbar .btns{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+#drawbar button{min-height:46px;border:1px solid var(--line);border-radius:8px;background:var(--soft);font-weight:700;font-size:14px;padding:4px}
+#drawbar button.go{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+#drawbar button:disabled{opacity:.4}
+
+/* panel */
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs .home{display:flex;align-items:center;padding:0 12px;color:var(--muted);font-weight:700;text-decoration:none;border-right:1px solid var(--line);white-space:nowrap}
+.tabs button{flex:1;height:46px;border:0;background:none;font-weight:700;color:var(--muted);border-bottom:3px solid transparent}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tab{flex:1 1 auto;overflow:auto;padding:14px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));display:grid;gap:14px;align-content:start}
+h2{font-size:13px;letter-spacing:.06em;color:var(--muted);margin:0;font-weight:700}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.big{width:100%;min-height:52px;border-radius:10px;border:2px solid;font-weight:700;background:var(--panel);display:flex;align-items:center;justify-content:center;gap:8px;padding:4px 8px;text-align:center}
+.big.cut{border-color:#c9a700}
+.big.ex{border-color:var(--ex)}
+.sw{width:14px;height:14px;border-radius:3px;flex:none}
+.sw.cut{background:var(--cut)} .sw.ex{background:var(--ex)}
+
+.stepper{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.stepper li{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;color:var(--muted);text-align:center}
+.stepper .dot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;border:2px solid var(--line);background:var(--panel)}
+.stepper li.now{color:var(--fg);font-weight:700}
+.stepper li.now .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.stepper li.done .dot{border-color:var(--accent);color:var(--accent)}
+.nav{display:grid;grid-template-columns:auto 1fr;gap:8px}
+.nav .next{min-height:50px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-fg);font-weight:700;font-size:16px}
+.nav .next:disabled{opacity:.35}
+.nav .back{min-height:50px;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:none;font-weight:700}
+.list{display:grid;gap:8px}
+.item{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:8px}
+.item .top{display:flex;align-items:center;gap:8px}
+.item .name{font-weight:700;flex:1;min-width:0}
+.item .ar{font-weight:700}
+.item .sub{color:var(--muted);font-size:13px}
+.item select{width:100%;height:42px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:0 8px}
+.x{width:36px;height:36px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--muted);flex:none}
+.empty{color:var(--muted);font-size:14px;border:1px dashed var(--line);border-radius:10px;padding:12px}
+
+.norm{display:grid;grid-template-columns:1fr auto 1fr auto auto;gap:6px;align-items:center}
+.norm input{width:100%;min-width:0;height:42px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel);text-align:right}
+.norm .u{color:var(--muted);font-size:13px}
+.norm .ar{min-width:64px;text-align:right;font-weight:700}
+.add{min-height:44px;border:1px dashed var(--muted);border-radius:10px;background:none;font-weight:700;color:var(--fg)}
+.hint{font-size:13px;color:var(--muted);margin:0}
+
+.field{display:grid;grid-template-columns:1fr 130px;gap:8px;align-items:center}
+.field input[type=number]{height:42px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel);text-align:right;width:100%}
+.field select{height:42px;border:1px solid var(--line);border-radius:8px;background:var(--panel);grid-column:1/-1;padding:0 8px}
+.check{display:flex;gap:10px;align-items:center;min-height:42px}
+.check input{width:22px;height:22px}
+
+table.bd{width:100%;border-collapse:collapse;font-size:14px}
+table.bd td{padding:7px 0;border-bottom:1px solid var(--line);vertical-align:top}
+table.bd td:last-child{text-align:right;white-space:nowrap;padding-left:8px}
+table.bd tr.tot td{font-weight:700;border-bottom:0;font-size:16px}
+
+#summary{background:var(--band);color:var(--band-fg);padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:12px}
+#summary .s{flex:1;min-width:0;display:flex;gap:16px;flex-wrap:wrap}
+#summary .k{font-size:11px;opacity:.8;letter-spacing:.05em}
+#summary .v{font-size:20px;font-weight:700;color:var(--band-num);line-height:1.2}
+#summary .v small{font-size:12px;color:var(--band-fg);font-weight:400;margin-left:3px}
+#summary button{height:46px;padding:0 14px;border:2px solid var(--band-num);border-radius:10px;background:none;color:var(--band-num);font-weight:700;flex:none}
+
+/* vertex + labels */
+.vx{border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #0008,0 1px 4px #0008}
+.vx-cut{background:var(--cut)} .vx-ex{background:var(--ex)}
+.leaflet-tooltip.lbl{background:#000c;color:#fff;border:0;border-radius:6px;font-family:var(--font);font-weight:700;font-size:13px;padding:3px 8px;box-shadow:none;text-align:center}
+.leaflet-tooltip.lbl::before{display:none}
+.leaflet-tooltip.edge{background:#fffe;color:#111;border:0;font-family:var(--font);font-size:11px;font-weight:700;padding:1px 5px;box-shadow:none}
+.leaflet-tooltip.edge::before{display:none}
+.leaflet-container{font-family:var(--font)}
+
+/* customer view */
+#customer{position:fixed;inset:0;z-index:3000;background:var(--panel);color:var(--fg);overflow:auto;padding:calc(24px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
+#customer .wrap{max-width:640px;margin:0 auto;display:grid;gap:18px}
+#customer h1{font-size:22px;margin:0;text-wrap:balance}
+#customer .area{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#customer .card{border:1px solid var(--line);border-radius:12px;padding:14px}
+#customer .card .k{color:var(--muted);font-size:13px}
+#customer .card .v{font-size:32px;font-weight:700;line-height:1.2}
+#customer .price{background:var(--band);color:var(--band-fg);border-radius:12px;padding:18px}
+#customer .price .v{font-size:40px;font-weight:700;color:var(--band-num);line-height:1.2}
+#customer .note{color:var(--muted);font-size:13px;margin:0}
+#customer .close{height:52px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-fg);font-weight:700;font-size:16px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="mapwrap">
+    <div id="map" aria-label="地図"></div>
+    <form id="searchbar" role="search">
+      <input id="q" type="search" placeholder="住所で探す（例：中津川市本町）" autocomplete="off" enterkeyhint="search">
+      <button type="submit">検索</button>
+    </form>
+    <div id="results" hidden></div>
+    <button id="locate" class="fab" type="button">◎ 現在地</button>
+    <div id="drawbar" hidden>
+      <div class="msg"><span id="drawmsg"></span><span id="drawarea" class="num"></span></div>
+      <div class="btns">
+        <button type="button" id="b-undo">1つ戻す</button>
+        <button type="button" id="b-gps">今いる所を角に</button>
+        <button type="button" id="b-cancel">やめる</button>
+        <button type="button" id="b-done" class="go">完了</button>
+      </div>
+    </div>
+  </div>
+
+  <aside id="panel">
+    <nav class="tabs" role="tablist">
+      <a class="home" href="../" data-home>← メニュー</a>
+      <button type="button" role="tab" data-tab="measure" aria-selected="true">測る</button>
+      <button type="button" role="tab" data-tab="est" aria-selected="false">見積</button>
+    </nav>
+    <div id="tab-measure" class="tab"></div>
+    <div id="tab-est" class="tab" hidden></div>
+    <footer id="summary"></footer>
+  </aside>
+</div>
+<div id="customer" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const TSUBO = 3.305785;
+const SLOPES = [
+  {v:0,    l:"ほぼ平ら（補正なし）"},
+  {v:0.05, l:"少し起伏あり（+5%）"},
+  {v:0.15, l:"起伏・段差あり（+15%）"},
+  {v:0.40, l:"かなり急な斜面（+40%）"}
+];
+const GRASS = [
+  {v:1.0, l:"普通（ひざ下くらい）"},
+  {v:1.3, l:"伸びている（ひざ〜腰）"},
+  {v:1.6, l:"背丈以上・ツルや竹が多い"}
+];
+const DEF_PRICES = {flat:150, slope:250, disposal:60, travel:0, min:8000, tax:true};
+
+function load(k, d){ try{ const v = JSON.parse(localStorage.getItem(k)); return v ? {...d, ...v} : {...d}; }catch(e){ return {...d}; } }
+function save(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+
+const prices = {...DEF_PRICES};  /* 単価は社長のみ変更（このファイルを書き換える） */
+let job = {grass:1.0, disposal:true};
+let shapes = [], norms = [], seq = 0, drawing = null;
+
+const fmt = n => Math.round(n).toLocaleString("ja-JP");
+const fmt1 = n => (Math.round(n*10)/10).toLocaleString("ja-JP",{minimumFractionDigits:1,maximumFractionDigits:1});
+const yen = n => "¥" + Math.round(n).toLocaleString("ja-JP");
+const sum = a => a.reduce((x,y)=>x+y,0);
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/* ---------- map ---------- */
+const attr = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a>';
+const map = L.map("map", {zoomControl:false, maxZoom:21}).setView([35.4876, 137.5004], 15);
+const photo = L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg", {maxZoom:21, maxNativeZoom:18, attribution:attr}).addTo(map);
+const std = L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png", {maxZoom:21, maxNativeZoom:18, attribution:attr});
+L.control.layers({"航空写真":photo, "地図":std}, null, {position:"topright"}).addTo(map);
+L.control.zoom({position:"bottomright"}).addTo(map);
+L.control.scale({imperial:false, position:"bottomright"}).addTo(map);
+
+/* area in m² (local flat projection; accurate for house-lot sizes) */
+function area(pts){
+  if(pts.length < 3) return 0;
+  const R = 6378137, rad = Math.PI/180;
+  const lat0 = sum(pts.map(p=>p.lat))/pts.length*rad;
+  const xy = pts.map(p => [p.lng*rad*R*Math.cos(lat0), p.lat*rad*R]);
+  let a = 0;
+  for(let i=0;i<xy.length;i++){ const [x1,y1]=xy[i], [x2,y2]=xy[(i+1)%xy.length]; a += x1*y2 - x2*y1; }
+  return Math.abs(a)/2;
+}
+
+function newShape(kind){
+  if(kind==="cut" && step!==1) return;
+  if(kind==="ex" && step!==2) return;
+  if(drawing) cancelDraw();
+  const n = shapes.filter(s=>s.kind===kind).length + 1;
+  const s = {id:++seq, kind, name:(kind==="cut"?"刈る範囲 ":"除外 ")+n, pts:[], slope:0, closed:false, layer:null, markers:[], edges:[]};
+  shapes.push(s); drawing = s;
+  showTab("measure"); renderAll();
+}
+map.on("click", e => { if(drawing) addPt(e.latlng); else $("#results").hidden = true; });
+function addPt(ll){ drawing.pts.push(ll); drawShape(drawing); renderAll(); }
+function undoPt(){ if(!drawing) return; drawing.pts.pop(); drawShape(drawing); renderAll(); }
+function finishDraw(){
+  if(!drawing || drawing.pts.length < 3) return;
+  drawing.closed = true; const s = drawing; drawing = null; drawShape(s); renderAll();
+}
+function cancelDraw(){ if(!drawing) return; removeShape(drawing); drawing = null; renderAll(); }
+function removeShape(s){ clearLayers(s); shapes = shapes.filter(x=>x!==s); }
+function clearLayers(s){
+  if(s.layer) map.removeLayer(s.layer);
+  s.markers.forEach(m=>map.removeLayer(m)); s.edges.forEach(m=>map.removeLayer(m));
+  s.layer = null; s.markers = []; s.edges = [];
+}
+function shapeLabel(s){ const a = area(s.pts); return `${s.name}<br>${fmt(a)}㎡ / ${fmt1(a/TSUBO)}坪`; }
+function ring(s){ return (!s.closed && s.pts.length > 2) ? [...s.pts, s.pts[0]] : s.pts; }
+
+function drawEdges(s){
+  s.edges.forEach(m=>map.removeLayer(m)); s.edges = [];
+  if(s.pts.length < 2) return;
+  const n = s.pts.length, last = (s.closed || n > 2) ? n : n-1;
+  for(let i=0;i<last;i++){
+    const a = s.pts[i], b = s.pts[(i+1)%n];
+    const d = map.distance(a,b); if(d < 1) continue;
+    const mid = L.latLng((a.lat+b.lat)/2, (a.lng+b.lng)/2);
+    const t = L.tooltip({permanent:true, direction:"center", className:"edge", interactive:false})
+      .setLatLng(mid).setContent(fmt1(d)+"m").addTo(map);
+    s.edges.push(t);
+  }
+}
+function drawShape(s){
+  clearLayers(s);
+  const col = cssVar(s.kind==="cut" ? "--cut" : "--ex");
+  if(s.closed){
+    s.layer = L.polygon(s.pts, {color:col, weight:3, fillColor:col, fillOpacity:.25}).addTo(map);
+    s.layer.bindTooltip(shapeLabel(s), {permanent:true, direction:"center", className:"lbl"});
+  }else{
+    s.layer = L.polyline(ring(s), {color:col, weight:3, dashArray:"7 6"}).addTo(map);
+  }
+  s.pts.forEach((p,i)=>{
+    const m = L.marker(p, {draggable:true, icon:L.divIcon({className:"vx vx-"+s.kind, iconSize:[22,22]})}).addTo(map);
+    m.on("drag", ev => { s.pts[i] = ev.target.getLatLng(); s.layer.setLatLngs(ring(s)); if(s.closed) s.layer.setTooltipContent(shapeLabel(s)); });
+    m.on("dragend", () => { drawShape(s); renderAll(); });
+    s.markers.push(m);
+  });
+  drawEdges(s);
+}
+
+/* ---------- location ---------- */
+let here = null, hereLayers = [];
+function locate(addAsCorner){
+  if(!navigator.geolocation){ alert("この端末では現在地を取得できません。"); return; }
+  const btn = $("#locate"); btn.textContent = "取得中…";
+  navigator.geolocation.getCurrentPosition(pos => {
+    btn.textContent = "◎ 現在地";
+    here = L.latLng(pos.coords.latitude, pos.coords.longitude);
+    hereLayers.forEach(l=>map.removeLayer(l));
+    hereLayers = [
+      L.circle(here, {radius:pos.coords.accuracy, color:"#2d7dff", weight:1, fillOpacity:.12, interactive:false}).addTo(map),
+      L.circleMarker(here, {radius:7, color:"#fff", weight:3, fillColor:"#2d7dff", fillOpacity:1, interactive:false}).addTo(map)
+    ];
+    if(addAsCorner && drawing){
+      addPt(here);
+      if(pos.coords.accuracy > 8) toast(`位置の誤差 約${Math.round(pos.coords.accuracy)}m。小さい庭は地図タップの方が正確です`);
+    }else{
+      map.setView(here, Math.max(map.getZoom(), 19));
+    }
+  }, err => {
+    btn.textContent = "◎ 現在地";
+    alert("現在地を取得できませんでした。端末の位置情報をオンにして、このページへの許可を確認してください。");
+  }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+}
+$("#locate").addEventListener("click", () => locate(false));
+$("#b-gps").addEventListener("click", () => locate(true));
+$("#b-undo").addEventListener("click", undoPt);
+$("#b-done").addEventListener("click", finishDraw);
+$("#b-cancel").addEventListener("click", cancelDraw);
+
+let toastT;
+function toast(msg){
+  let t = $("#toast");
+  if(!t){ t = document.createElement("div"); t.id = "toast";
+    t.style.cssText = "position:fixed;z-index:4000;left:50%;top:calc(70px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:#000d;color:#fff;padding:10px 14px;border-radius:8px;font-size:14px;max-width:90vw";
+    document.body.appendChild(t); }
+  t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(()=>t.hidden = true, 3500);
+}
+
+/* ---------- address search (国土地理院) ---------- */
+$("#searchbar").addEventListener("submit", async e => {
+  e.preventDefault();
+  const q = $("#q").value.trim(); if(!q) return;
+  const box = $("#results"); box.hidden = false; box.innerHTML = '<div class="none">検索中…</div>';
+  try{
+    const r = await fetch("https://msearch.gsi.go.jp/address-search/AddressSearch?q=" + encodeURIComponent(q));
+    const list = (await r.json()).slice(0, 6);
+    box.innerHTML = "";
+    if(!list.length){ box.innerHTML = '<div class="none">見つかりませんでした。地名や番地を変えてお試しください。</div>'; return; }
+    list.forEach(it => {
+      const b = document.createElement("button"); b.type = "button";
+      b.textContent = it.properties.title;
+      b.addEventListener("click", () => {
+        const [lon, lat] = it.geometry.coordinates;
+        map.setView([lat, lon], 19); box.hidden = true; $("#q").blur();
+      });
+      box.appendChild(b);
+    });
+  }catch(err){ box.innerHTML = '<div class="none">検索できませんでした。電波の状態を確認してください。</div>'; }
+});
+
+/* ---------- calculation ---------- */
+function calc(){
+  const cut = shapes.filter(s=>s.kind==="cut" && s.closed);
+  const ex  = shapes.filter(s=>s.kind==="ex"  && s.closed);
+  const plan = sum(cut.map(s=>area(s.pts)));
+  const exA  = sum(ex.map(s=>area(s.pts)));
+  const adjAdd = sum(cut.map(s=>area(s.pts)*s.slope));
+  const flat = Math.max(0, plan + adjAdd - exA);
+  const norm = sum(norms.map(n => (parseFloat(n.len)||0) * (parseFloat(n.w)||0)));
+  const total = flat + norm;
+  const g = job.grass;
+  const pFlat = flat * prices.flat * g;
+  const pNorm = norm * prices.slope * g;
+  const pDisp = job.disposal ? total * prices.disposal : 0;
+  const pTravel = total > 0 ? (+prices.travel || 0) : 0;
+  let sub = pFlat + pNorm + pDisp + pTravel;
+  const minApplied = total > 0 && sub < prices.min;
+  if(minApplied) sub = prices.min;
+  sub = Math.round(sub/100)*100;
+  const tax = prices.tax ? Math.round(sub*0.1) : 0;
+  return {plan, exA, adjAdd, flat, norm, total, pFlat, pNorm, pDisp, pTravel, minApplied, sub, tax, grand:sub+tax};
+}
+
+/* ---------- panel rendering ---------- */
+function showTab(name){
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab===name));
+  ["measure","est"].forEach(t => $("#tab-"+t).hidden = t!==name);
+}
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+function renderAll(){ renderDrawbar(); renderMeasure(); renderEst(); renderSummary(); }
+
+function renderDrawbar(){
+  const bar = $("#drawbar");
+  bar.hidden = !drawing; $("#locate").hidden = !!drawing;
+  if(!drawing) return;
+  const n = drawing.pts.length;
+  $("#drawmsg").innerHTML = `<span class="tag" style="background:var(${drawing.kind==="cut"?"--cut":"--ex"})"></span>` +
+    (n < 3 ? `地図をタップして角を置く（あと${3-n}点以上）` : `角 ${n}点 ・ 終わったら「完了」`);
+  $("#drawarea").textContent = n >= 3 ? `${fmt(area(drawing.pts))}㎡` : "";
+  $("#b-undo").disabled = n === 0;
+  $("#b-done").disabled = n < 3;
+}
+
+let step = 1;
+const STEPS = ["刈る範囲", "建物を除く", "法面", "見積"];
+function cutDone(){ return shapes.some(s=>s.kind==="cut" && s.closed); }
+function goStep(n){
+  if(drawing) cancelDraw();
+  if(n >= 2 && !cutDone()) n = 1;
+  if(n === 4){ step = 4; renderAll(); showTab("est"); return; }
+  step = n; renderAll();
+}
+function itemHtml(s){
+  const a = area(s.pts);
+  return `<div class="item">
+    <div class="top"><span class="sw ${s.kind}"></span><span class="name">${s.name}</span>
+      <span class="ar num">${fmt(a)}㎡</span>
+      <button type="button" class="x" data-act="del" data-id="${s.id}" aria-label="${s.name}を削除">✕</button></div>
+    <div class="sub num">${fmt1(a/TSUBO)}坪${s.kind==="ex"?"（刈る面積から差し引き）":""}</div>
+    ${s.kind==="cut" ? `<select data-act="slope" data-id="${s.id}" aria-label="${s.name}の起伏">
+      ${SLOPES.map(o=>`<option value="${o.v}" ${o.v===s.slope?"selected":""}>${o.l}</option>`).join("")}</select>` : ""}
+  </div>`;
+}
+function stepperHtml(){
+  return `<ol class="stepper">` + STEPS.map((t,i)=>{
+    const n = i+1, st = n < step ? "done" : n === step ? "now" : "todo";
+    return `<li class="${st}"><span class="dot">${n < step ? "✓" : n}</span><span class="t">${t}</span></li>`;
+  }).join("") + `</ol>`;
+}
+function renderMeasure(){
+  const el = $("#tab-measure");
+  const cuts = shapes.filter(s=>s.kind==="cut" && s.closed);
+  const exs  = shapes.filter(s=>s.kind==="ex"  && s.closed);
+  let h = stepperHtml();
+  if(step === 1){
+    h += `<h2>ステップ1　刈る範囲を囲む</h2>
+      <p class="hint">航空写真で敷地の角を順にタップし、「完了」を押します。点はドラッグで動かせます。離れた場所が複数あれば、もう一度押して追加できます。</p>
+      <button type="button" class="big cut" data-act="new-cut"><span class="sw cut"></span>${cuts.length ? "刈る範囲をもう1つ囲む" : "刈る範囲を囲む"}</button>`;
+    h += cuts.length ? `<div class="list">${cuts.map(itemHtml).join("")}</div>` : `<div class="empty">まだ囲んでいません。</div>`;
+    h += `<div class="nav"><span></span>
+      <button type="button" class="next" data-act="step" data-to="2" ${cuts.length ? "" : "disabled"}>次へ：建物を除く</button></div>
+      ${cuts.length ? "" : `<p class="hint">刈る範囲を1つ以上囲むと次へ進めます。</p>`}`;
+  }else if(step === 2){
+    h += `<h2>ステップ2　建物など刈らない所を除く</h2>
+      <p class="hint">家・倉庫・駐車場・畑など、刈らない所を囲みます。囲んだ分は自動で差し引かれます。</p>
+      <button type="button" class="big ex" data-act="new-ex"><span class="sw ex"></span>${exs.length ? "除く所をもう1つ囲む" : "除く所を囲む"}</button>`;
+    h += exs.length ? `<div class="list">${exs.map(itemHtml).join("")}</div>` : "";
+    h += `<div class="nav"><button type="button" class="back" data-act="step" data-to="1">戻る</button>
+      <button type="button" class="next" data-act="step" data-to="3">${exs.length ? "次へ：法面" : "除く所はない → 次へ"}</button></div>`;
+  }else{
+    h += `<h2>ステップ3　法面・土手（地図では測れない斜面）</h2>
+      <p class="hint">斜面の「長さ」と、上から下までの「斜面の幅」を入力します（歩測やメジャーで）。</p>
+      <div class="list">` + norms.map(n => {
+        const a = (parseFloat(n.len)||0)*(parseFloat(n.w)||0);
+        return `<div class="norm">
+          <input type="number" inputmode="decimal" min="0" step="0.5" id="nl-${n.id}" value="${n.len}" placeholder="長さ" data-act="norm" data-f="len" data-id="${n.id}" aria-label="長さ(m)">
+          <span class="u">m ×</span>
+          <input type="number" inputmode="decimal" min="0" step="0.5" id="nw-${n.id}" value="${n.w}" placeholder="幅" data-act="norm" data-f="w" data-id="${n.id}" aria-label="斜面の幅(m)">
+          <span class="ar num" id="na-${n.id}">${fmt(a)}㎡</span>
+          <button type="button" class="x" data-act="del-norm" data-id="${n.id}" aria-label="法面を削除">✕</button>
+        </div>`;
+      }).join("") + `<button type="button" class="add" data-act="add-norm">＋ 法面を追加</button></div>
+      <div class="nav"><button type="button" class="back" data-act="step" data-to="2">戻る</button>
+        <button type="button" class="next" data-act="step" data-to="4">${norms.length ? "次へ：見積" : "法面はない → 見積へ"}</button></div>`;
+    if(step === 4){
+      h += `<p class="hint">見積は「見積」タブに出ています。範囲を直すときは「戻る」で前のステップへ。</p>`;
+    }
+  }
+  h += `<button type="button" class="add" data-act="reset" style="margin-top:6px">新しい現場にする（全部消す）</button>`;
+  el.innerHTML = h;
+}
+
+function renderEst(){
+  const c = calc();
+  const el = $("#tab-est");
+  el.innerHTML = `
+    <div class="field"><label for="grass">草の状態</label><span></span>
+      <select id="grass" data-act="grass">${GRASS.map(o=>`<option value="${o.v}" ${o.v===job.grass?"selected":""}>${o.l}${o.v!==1?`（×${o.v}）`:""}</option>`).join("")}</select></div>
+    <label class="check"><input type="checkbox" id="disp" data-act="disp" ${job.disposal?"checked":""}> 刈った草の集草・処分も行う</label>
+    <h2>内訳</h2>
+    <table class="bd num">
+      <tr><td>敷地（真上から見た面積）</td><td>${fmt(c.plan)}㎡</td></tr>
+      ${c.adjAdd>0?`<tr><td>起伏・段差の補正</td><td>+${fmt(c.adjAdd)}㎡</td></tr>`:""}
+      ${c.exA>0?`<tr><td>建物など除外</td><td>−${fmt(c.exA)}㎡</td></tr>`:""}
+      <tr><td>平地の作業面積</td><td>${fmt(c.flat)}㎡</td></tr>
+      ${c.norm>0?`<tr><td>法面の作業面積</td><td>${fmt(c.norm)}㎡</td></tr>`:""}
+      <tr class="tot"><td>作業面積 合計</td><td>${fmt(c.total)}㎡（${fmt1(c.total/TSUBO)}坪）</td></tr>
+    </table>
+    <table class="bd num">
+      <tr><td>平地 ${fmt(c.flat)}㎡ × ${prices.flat}円${job.grass!==1?` × ${job.grass}`:""}</td><td>${yen(c.pFlat)}</td></tr>
+      ${c.norm>0?`<tr><td>法面 ${fmt(c.norm)}㎡ × ${prices.slope}円${job.grass!==1?` × ${job.grass}`:""}</td><td>${yen(c.pNorm)}</td></tr>`:""}
+      ${job.disposal?`<tr><td>集草・処分 ${fmt(c.total)}㎡ × ${prices.disposal}円</td><td>${yen(c.pDisp)}</td></tr>`:""}
+      ${c.pTravel>0?`<tr><td>出張費</td><td>${yen(c.pTravel)}</td></tr>`:""}
+      ${c.minApplied?`<tr><td>最低料金を適用</td><td>${yen(prices.min)}</td></tr>`:""}
+      <tr><td>小計（100円単位）</td><td>${yen(c.sub)}</td></tr>
+      ${prices.tax?`<tr><td>消費税 10%</td><td>${yen(c.tax)}</td></tr>`:""}
+      <tr class="tot"><td>見積金額${prices.tax?"（税込）":""}</td><td>${yen(c.grand)}</td></tr>
+    </table>`;
+}
+
+function renderSet(){
+  const el = $("#tab-set");
+  const f = (k, label, unit) => `<div class="field"><label for="p-${k}">${label}</label>
+    <input type="number" inputmode="numeric" min="0" step="10" id="p-${k}" value="${prices[k]}" data-act="price" data-k="${k}" aria-label="${label}（${unit}）"></div>`;
+  el.innerHTML = `
+    <p class="hint">最初に入っている金額は仮の例です。自社の単価に変えてください。この端末に保存されます。</p>
+    ${f("flat","平地の単価（円/㎡）","円/㎡")}
+    ${f("slope","法面の単価（円/㎡）","円/㎡")}
+    ${f("disposal","集草・処分（円/㎡）","円/㎡")}
+    ${f("travel","出張費（円）","円")}
+    ${f("min","最低料金（円）","円")}
+    <label class="check"><input type="checkbox" id="p-tax" data-act="tax" ${prices.tax?"checked":""}> 消費税10%を加えて表示する</label>
+    <h2>起伏の補正について</h2>
+    <p class="hint">地図で測れるのは真上から見た面積です。段差や傾斜がある範囲は、実際に刈る面積が広くなるため、範囲ごとに +5%・+15%・+40% を選べます。</p>`;
+}
+
+function renderSummary(){
+  const c = calc();
+  $("#summary").innerHTML = `
+    <div class="s num">
+      <div><div class="k">作業面積</div><div class="v">${fmt(c.total)}<small>㎡</small> <small>${fmt1(c.total/TSUBO)}坪</small></div></div>
+      <div><div class="k">見積${prices.tax?"（税込）":""}</div><div class="v">${yen(c.grand)}</div></div>
+    </div>
+    <button type="button" id="show-cust">お客様に見せる</button>`;
+  $("#show-cust").addEventListener("click", showCustomer);
+}
+
+function showCustomer(){
+  const c = calc();
+  const d = new Date();
+  const el = $("#customer");
+  el.innerHTML = `<div class="wrap num">
+    <h1>草刈り 概算お見積り</h1>
+    <p class="note">${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日</p>
+    <div class="area">
+      <div class="card"><div class="k">作業面積</div><div class="v">${fmt(c.total)}㎡</div></div>
+      <div class="card"><div class="k">坪数</div><div class="v">${fmt1(c.total/TSUBO)}坪</div></div>
+    </div>
+    <table class="bd">
+      <tr><td>平地（建物を除く）</td><td>${fmt(c.flat)}㎡</td></tr>
+      ${c.norm>0?`<tr><td>法面・土手</td><td>${fmt(c.norm)}㎡</td></tr>`:""}
+      <tr><td>草の状態</td><td>${GRASS.find(o=>o.v===job.grass).l}</td></tr>
+      <tr><td>集草・処分</td><td>${job.disposal?"含む":"含まない"}</td></tr>
+    </table>
+    <div class="price"><div>お見積金額${prices.tax?"（税込）":""}</div><div class="v">${yen(c.grand)}</div></div>
+    <p class="note">航空写真をもとにした概算です。現地の状況により変わる場合があります。</p>
+    <button type="button" class="close" id="close-cust">閉じる</button>
+  </div>`;
+  el.hidden = false; el.scrollTop = 0;
+  $("#close-cust").addEventListener("click", () => el.hidden = true);
+}
+
+/* ---------- panel events ---------- */
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-act]"); if(!t) return;
+  const act = t.dataset.act, id = +t.dataset.id;
+  if(act==="new-cut") newShape("cut");
+  else if(act==="new-ex") newShape("ex");
+  else if(act==="del"){ const s = shapes.find(x=>x.id===id); if(s){ removeShape(s); if(!cutDone()) step = 1; renderAll(); } }
+  else if(act==="step"){ goStep(+t.dataset.to); }
+  else if(act==="add-norm"){ norms.push({id:++seq, len:"", w:""}); renderAll(); const i = $("#nl-"+seq); if(i) i.focus(); }
+  else if(act==="del-norm"){ norms = norms.filter(n=>n.id!==id); renderAll(); }
+  else if(act==="reset"){
+    if(!confirm("この現場の範囲と法面をすべて消します。よろしいですか？")) return;
+    if(drawing) cancelDraw();
+    shapes.slice().forEach(removeShape); norms = []; job = {grass:1.0, disposal:true}; step = 1; renderAll(); showTab("measure");
+  }
+});
+document.addEventListener("change", e => {
+  const t = e.target; const act = t.dataset && t.dataset.act; if(!act) return;
+  if(act==="slope"){ const s = shapes.find(x=>x.id===+t.dataset.id); if(s) s.slope = parseFloat(t.value); renderEst(); renderSummary(); }
+  else if(act==="grass"){ job.grass = parseFloat(t.value); renderEst(); renderSummary(); }
+  else if(act==="disp"){ job.disposal = t.checked; renderEst(); renderSummary(); }
+  else if(act==="tax"){ prices.tax = t.checked; save("kusakari.prices", prices); renderEst(); renderSummary(); }
+});
+document.addEventListener("input", e => {
+  const t = e.target; const act = t.dataset && t.dataset.act; if(!act) return;
+  if(act==="norm"){
+    const n = norms.find(x=>x.id===+t.dataset.id); if(!n) return;
+    n[t.dataset.f] = t.value;
+    $("#na-"+n.id).textContent = fmt((parseFloat(n.len)||0)*(parseFloat(n.w)||0)) + "㎡";
+    renderEst(); renderSummary();
+  }else if(act==="price"){
+    const v = parseFloat(t.value); prices[t.dataset.k] = isNaN(v) ? 0 : v;
+    save("kusakari.prices", prices); renderEst(); renderSummary();
+  }
+});
+
+document.querySelector("[data-home]").addEventListener("click", e => { if(shapes.length && !confirm("入力中の内容は消えます。メニューに戻りますか？")) e.preventDefault(); });
+renderAll();
+</script>
+</body>
+</html>

@@ -37,6 +37,7 @@ button{cursor:pointer}
 
 header.top{background:var(--band);color:var(--band-fg);padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 4px max(16px,env(safe-area-inset-left,0px))}
 header.top .in{max-width:640px;margin:0 auto}
+header.top .home{display:inline-block;color:var(--band-fg);opacity:.8;font-weight:700;text-decoration:none;font-size:13px;margin-bottom:4px;min-height:32px;line-height:32px}
 header.top h1{font-size:17px;margin:0 0 6px}
 .tabs{display:flex;gap:4px}
 .tabs button{height:42px;padding:0 16px;border:0;background:none;color:var(--band-fg);opacity:.7;font-weight:700;border-bottom:3px solid transparent}
@@ -136,6 +137,7 @@ table.bd tr.minus td:last-child{color:var(--accent);font-weight:700}
 </head>
 <body>
 <header class="top"><div class="in">
+  <a class="home" href="../" data-home>← メニュー</a>
   <h1>不用品処分・買取 見積</h1>
 </div></header>
 <main>
@@ -423,6 +425,7 @@ async function shareCands(){
   catch(e){ alert(text); }
 }
 
+document.querySelector("[data-home]").addEventListener("click", e => { if((job.qty!==null || job.cands.length) && !confirm("入力中の内容は消えます。メニューに戻りますか？")) e.preventDefault(); });
 render();
 </script>
 </body>
