@@ -35,7 +35,7 @@ button{cursor:pointer}
 :focus-visible{outline:3px solid var(--pick);outline-offset:2px}
 .num{font-variant-numeric:tabular-nums}
 
-header.top{background:var(--band);color:var(--band-fg);padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+header.top{background:var(--band);color:var(--band-fg);padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 4px max(16px,env(safe-area-inset-left,0px))}
 header.top .in{max-width:640px;margin:0 auto}
 header.top h1{font-size:17px;margin:0 0 6px}
 .tabs{display:flex;gap:4px}
@@ -64,6 +64,15 @@ h3{font-size:13px;letter-spacing:.06em;color:var(--muted);margin:4px 0 0}
 .load .g{font-size:12px;color:var(--muted)}
 .load svg{width:100%;max-width:120px;height:auto}
 
+.qtybox{background:var(--panel);border:2px solid var(--pick);border-radius:14px;padding:14px;display:grid;gap:8px;justify-items:center;text-align:center}
+.trucks{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.tk{display:grid;justify-items:center;font-size:11px;color:var(--muted)}
+.tk svg{width:96px;height:auto;max-width:100%}
+.qtyname{font-size:24px;font-weight:700;line-height:1.3}
+.qtyprice{font-size:18px;font-weight:700}
+.qtyctl{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+.qtyctl .btn{min-height:56px;font-size:17px;background:var(--soft)}
+.kg{width:80px;height:44px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel);text-align:right;font-size:17px;font-weight:700}
 .ctr{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .ctr:last-child{border-bottom:0}
 .ctr .l{min-width:0}
@@ -128,14 +137,9 @@ table.bd tr.minus td:last-child{color:var(--accent);font-weight:700}
 <body>
 <header class="top"><div class="in">
   <h1>不用品処分・買取 見積</h1>
-  <nav class="tabs" role="tablist">
-    <button type="button" role="tab" data-tab="est" aria-selected="true">見積</button>
-    <button type="button" role="tab" data-tab="set" aria-selected="false">単価設定</button>
-  </nav>
 </div></header>
 <main>
   <section id="page-est" class="page"></section>
-  <section id="page-set" class="page" hidden></section>
 </main>
 <footer id="summary"></footer>
 <div id="customer" hidden></div>
@@ -154,6 +158,7 @@ const DEF = {
   hard:{tire:500, battery:1000, ext:2000, gas:2000, paint:500, mattress:3000},
   cond:{floor2:3000, far:2000, dismantle:3000},
   staff:8000, tax:true,
+  iron:10,   /* 鉄くず 1kgあたりの買取額 */
   buyList:[
     {id:1, name:"冷蔵庫（製造5年以内・動作品）", price:2000},
     {id:2, name:"洗濯機（製造5年以内・動作品）", price:2000},
@@ -174,23 +179,25 @@ const SPECIAL = ["ピアノ","金庫","仏壇","大型物置","その他 特に�
 const CATS = ["家電","家具","工具・農機具","ブランド品・貴金属","骨董・美術品・着物","その他"];
 const CHECKS = [["new","製造5年以内"],["works","動作OK"],["clean","目立つ傷なし"],["acc","付属品あり"]];
 
-function loadP(){
-  try{
-    const s = JSON.parse(localStorage.getItem("fuyohin.prices")) || {};
-    return {...DEF, ...s, truck:{...DEF.truck, ...(s.truck||{})}, appl:{...DEF.appl, ...(s.appl||{})},
-      hard:{...DEF.hard, ...(s.hard||{})}, cond:{...DEF.cond, ...(s.cond||{})}, buyList:(s.buyList||DEF.buyList).map(b=>({...b}))};
-  }catch(e){ return JSON.parse(JSON.stringify(DEF)); }
-}
-function saveP(){ try{ localStorage.setItem("fuyohin.prices", JSON.stringify(P)); }catch(e){} }
-let P = loadP();
+const P = JSON.parse(JSON.stringify(DEF));  /* 単価は社長のみ変更（このファイルを書き換える） */
 
-function newJob(){ return {frac:null, extraFull:0, appl:{}, hard:{}, cond:{}, staff:0, special:[], buy:{}, cands:[]}; }
+function newJob(){ return {qty:null, iron:0, appl:{}, hard:{}, cond:{}, staff:0, special:[], buy:{}, cands:[]}; }
 let job = newJob(), step = 1, seq = 100;
 
 /* ---------- calculation ---------- */
-function fracPrice(f){ const l = LOADS.find(x=>x.v===f); return l ? P.truck[l.k] : 0; }
+/* qty = 1/4台単位の数（6 = 1台半） */
+const QK = ["", "q1", "q2", "q3"];
+function qtyPrice(q){ if(!q) return 0; return Math.floor(q/4)*P.truck.full + (q%4 ? P.truck[QK[q%4]] : 0); }
+function qtyText(q){
+  if(q===null) return "未選択";
+  if(q===0) return "処分なし（買取のみ）";
+  const f = Math.floor(q/4), r = q%4, rt = ["", "1/4", "半分", "3/4"][r];
+  if(!f) return "軽トラ " + (r===2 ? "半分" : rt + "台分");
+  return "軽トラ " + f + "台" + (r ? "と" + rt : "");
+}
+function qtyShort(q){ return {1:"1/4",2:"半分",3:"3/4",4:"1台",6:"1台半",8:"2台",10:"2台半",12:"3台"}[q]; }
 function calc(){
-  const truck = fracPrice(job.frac) + job.extraFull * P.truck.full;
+  const truck = qtyPrice(job.qty);
   const appl = sum(APPL.map(([k])=>(job.appl[k]||0)*P.appl[k]));
   const hard = sum(HARD.map(([k])=>(job.hard[k]||0)*P.hard[k]));
   const cond = sum(COND.map(([k])=>job.cond[k] ? P.cond[k] : 0));
@@ -198,16 +205,13 @@ function calc(){
   let sub = Math.round((truck+appl+hard+cond+staff)/100)*100;
   const tax = P.tax ? Math.round(sub*0.1) : 0;
   const service = sub + tax;
-  const buy = sum(P.buyList.map(b=>(job.buy[b.id]||0)*b.price));
+  const buyFixed = sum(P.buyList.map(b=>(job.buy[b.id]||0)*b.price));
+  const buyIron = Math.round((job.iron||0) * P.iron);
+  const buy = buyFixed + buyIron;
   const pending = job.cands.filter(c=>candOk(c)).length;
-  return {truck, appl, hard, cond, staff, sub, tax, service, buy, pay:service-buy, pending};
+  return {truck, appl, hard, cond, staff, sub, tax, service, buyFixed, buyIron, buy, pay:service-buy, pending};
 }
-function loadText(){
-  const parts = [];
-  if(job.frac) parts.push("軽トラ " + LOADS.find(l=>l.v===job.frac).t);
-  if(job.extraFull) parts.push("満載 " + job.extraFull + "台追加");
-  return parts.length ? parts.join(" ＋ ") : (job.frac===0 ? "処分なし" : "未選択");
-}
+function loadText(){ return qtyText(job.qty); }
 function candOk(c){ return c.cat==="ブランド品・貴金属" || c.cat==="骨董・美術品・着物" || (c.checks.works && (c.cat!=="家電" || c.checks.new)); }
 
 /* ---------- rendering ---------- */
@@ -227,6 +231,12 @@ function truckSvg(level){
     <circle cx="24" cy="46" r="7" fill="var(--panel)" stroke="var(--fg)" stroke-width="2.5"/>
     <circle cx="96" cy="46" r="7" fill="var(--panel)" stroke="var(--fg)" stroke-width="2.5"/></svg>`;
 }
+function trucksHtml(q){
+  const n = Math.max(1, Math.ceil(q/4));
+  let h = "";
+  for(let i=0;i<n;i++){ const lv = Math.max(0, Math.min(1, (q - i*4)/4)); h += `<div class="tk">${truckSvg(lv)}<span>${i+1}台目</span></div>`; }
+  return h;
+}
 function ctr(group, k, label, price){
   const n = (group ? job[group][k] : job[k]) || 0;
   return `<div class="ctr"><div class="l">${label}<small class="num">1点 ${yen(price)}</small></div>
@@ -239,18 +249,24 @@ function render(){
   const el = $("#page-est");
   let h = stepper();
   if(step===1){
+    const q = job.qty;
     h += `<h2>1. 処分する物は軽トラ何台分？</h2>
-      <p class="hint">荷台に積んだ様子を想像して選びます。<b>迷ったら大きい方</b>を選んでください。</p>
-      <div class="loads">` + LOADS.map(l=>`
-        <button type="button" class="load" data-act="frac" data-v="${l.v}" aria-pressed="${job.frac===l.v}">
-          ${truckSvg(l.v)}<span class="t">${l.t}</span><span class="p num">${yen(P.truck[l.k])}</span><span class="g">${l.g}</span>
-        </button>`).join("") + `
-        <button type="button" class="load" data-act="frac" data-v="0" aria-pressed="${job.frac===0}">
-          ${truckSvg(0)}<span class="t">処分なし</span><span class="g">買取だけの場合</span></button>
+      <p class="hint">荷台に積んだ様子を想像して、下のボタンで選びます。半端な量は「＋1/4台」「−1/4台」で調整してください。<b>迷ったら多い方</b>にします。</p>
+      <div class="qtybox">
+        <div class="trucks">${trucksHtml(q||0)}</div>
+        <div class="qtyname">${qtyText(q)}</div>
+        <div class="qtyprice num">${q ? yen(qtyPrice(q)) : (q===0 ? "処分費なし" : "　")}</div>
+        <div class="qtyctl">
+          <button type="button" class="btn" data-act="qdec" ${!q?"disabled":""}>− 1/4台</button>
+          <button type="button" class="btn" data-act="qinc">＋ 1/4台</button>
+        </div>
       </div>
-      <div class="box">${ctr(null,"extraFull","1台に乗りきらないときの追加台数（満載）",P.truck.full)}</div>
-      <div class="nav"><span></span><button type="button" class="btn main" data-act="step" data-to="2" ${job.frac===null?"disabled":""}>次へ：追加料金</button></div>
-      ${job.frac===null?`<p class="hint">量を選ぶと次へ進めます。</p>`:""}`;
+      <h3>よくある量からすぐ選ぶ</h3>
+      <div class="chips">${[1,2,3,4,6,8,10,12].map(v=>`<button type="button" class="chip" data-act="qset" data-v="${v}" aria-pressed="${q===v}">${qtyShort(v)}</button>`).join("")}
+        <button type="button" class="chip" data-act="qset" data-v="0" aria-pressed="${q===0}">処分なし（買取のみ）</button></div>
+      <div class="box"><p class="hint">量の目安　1/4台：家電2〜3点＋段ボール数箱　／　半分：単身の部屋の家財が少なめ　／　1台：6畳一間の家財がいっぱい</p></div>
+      <div class="nav"><span></span><button type="button" class="btn main" data-act="step" data-to="2" ${q===null?"disabled":""}>次へ：追加料金</button></div>
+      ${q===null?`<p class="hint">量を選ぶと次へ進めます。</p>`:""}`;
   }else if(step===2){
     h += `<h2>2. 追加料金がかかる物・条件</h2>
       <h3>家電リサイクル4品目（リサイクル料金＋運搬手数料）</h3>
@@ -271,6 +287,14 @@ function render(){
       <h3>決まった金額で買い取る物</h3>
       <p class="hint">この表にある物だけ、その場で金額を出せます。条件に合うか、しっかり確認してください。</p>
       <div class="box">${P.buyList.length ? P.buyList.map(b=>ctr("buy",b.id,b.name,b.price)).join("") : `<p class="hint">登録された品目はありません。</p>`}</div>
+      <h3>鉄くず（1kg ${P.iron}円で買取）</h3>
+      <div class="box">
+        <div class="ctr"><div class="l">鉄くずの重さ<small>目安：自転車1台 約15kg</small></div>
+          <div class="c"><button type="button" data-act="irondec" aria-label="5kg減らす">−</button>
+            <input type="number" inputmode="decimal" min="0" step="1" id="iron" class="kg num" value="${job.iron||""}" placeholder="0" data-act="iron" aria-label="鉄くずの重さ(kg)"><span>kg</span>
+            <button type="button" data-act="ironinc" aria-label="5kg増やす">＋</button></div></div>
+        <p class="hint num">買取額 <b id="iron-amt">${yen(Math.round((job.iron||0)*P.iron))}</b>　※鉄くずは手順1の軽トラの量に含めません。</p>
+      </div>
       <h3>査定が必要な物（写真で社長に確認）</h3>
       <p class="hint">金額は付けません。写真を撮り、メーカー・型番を書いて送ります。</p>
       <div class="page">` + job.cands.map(c=>`
@@ -294,7 +318,7 @@ function render(){
     const c = calc();
     h += `<h2>4. 見積</h2>
       <table class="bd num">
-        ${job.frac!==0||job.extraFull?`<tr><td>処分費（${loadText()}）</td><td>${yen(c.truck)}</td></tr>`:""}
+        ${job.qty>0?`<tr><td>処分費（${loadText()}）</td><td>${yen(c.truck)}</td></tr>`:""}
         ${c.appl?`<tr><td>家電リサイクル品</td><td>${yen(c.appl)}</td></tr>`:""}
         ${c.hard?`<tr><td>処分しにくい物</td><td>${yen(c.hard)}</td></tr>`:""}
         ${c.cond?`<tr><td>作業条件の加算</td><td>${yen(c.cond)}</td></tr>`:""}
@@ -302,7 +326,8 @@ function render(){
         <tr><td>小計（100円単位）</td><td>${yen(c.sub)}</td></tr>
         ${P.tax?`<tr><td>消費税 10%</td><td>${yen(c.tax)}</td></tr>`:""}
         <tr><td><b>処分費用 合計</b></td><td><b>${yen(c.service)}</b></td></tr>
-        ${c.buy?`<tr class="minus"><td>買取（相殺）</td><td>−${yen(c.buy)}</td></tr>`:""}
+        ${c.buyFixed?`<tr class="minus"><td>買取（決まった品目）</td><td>−${yen(c.buyFixed)}</td></tr>`:""}
+        ${c.buyIron?`<tr class="minus"><td>鉄くず ${job.iron}kg × ${P.iron}円</td><td>−${yen(c.buyIron)}</td></tr>`:""}
         <tr class="tot"><td>${c.pay>=0?"お支払い金額":"お客様へお支払いする金額"}</td><td>${yen(Math.abs(c.pay))}</td></tr>
       </table>
       ${job.special.length?`<div class="warnbox">別途見積：${job.special.join("・")}</div>`:""}
@@ -333,7 +358,8 @@ function showCustomer(){
     <table class="bd">
       <tr><td>処分する量</td><td>${loadText()}</td></tr>
       <tr><td>処分費用${P.tax?"（税込）":""}</td><td>${yen(c.service)}</td></tr>
-      ${c.buy?`<tr class="minus"><td>買取金額（差し引き）</td><td>−${yen(c.buy)}</td></tr>`:""}
+      ${c.buyFixed?`<tr class="minus"><td>買取金額（差し引き）</td><td>−${yen(c.buyFixed)}</td></tr>`:""}
+      ${c.buyIron?`<tr class="minus"><td>鉄くず買取 ${job.iron}kg（差し引き）</td><td>−${yen(c.buyIron)}</td></tr>`:""}
     </table>
     <div class="price"><div>${c.pay>=0?"お支払い金額":"お客様へお支払いする金額"}</div><div class="v">${yen(Math.abs(c.pay))}</div></div>
     ${job.special.length?`<p class="note">${job.special.join("・")} は別途お見積りとなります。</p>`:""}
@@ -344,45 +370,22 @@ function showCustomer(){
   $("#close-cust").addEventListener("click", ()=>el.hidden = true);
 }
 
-function renderSet(){
-  const f = (path, label) => {
-    const [g,k] = path.split("."); const v = k ? P[g][k] : P[g];
-    return `<div class="set"><label for="s-${path}">${label}</label><input type="number" inputmode="numeric" min="0" step="100" id="s-${path}" value="${v}" data-act="price" data-path="${path}"></div>`;
-  };
-  $("#page-set").innerHTML = `
-    <p class="hint">最初に入っている金額のうち、軽トラ1台35,000円以外は仮の例です。この端末に保存されます。</p>
-    <h3>軽トラの量</h3><div class="box">${LOADS.map(l=>f("truck."+l.k, "軽トラ "+l.t)).join("")}</div>
-    <h3>家電リサイクル4品目（1台）</h3><div class="box">${APPL.map(([k,l])=>f("appl."+k,l)).join("")}</div>
-    <h3>処分しにくい物</h3><div class="box">${HARD.map(([k,l])=>f("hard."+k,l)).join("")}</div>
-    <h3>作業の条件</h3><div class="box">${COND.map(([k,l])=>f("cond."+k,l)).join("")}${f("staff","作業員の追加（1名）")}</div>
-    <label class="chk"><input type="checkbox" data-act="tax" ${P.tax?"checked":""}><span>処分費用に消費税10%を加える</span></label>
-    <h3>決まった金額で買い取る物</h3>
-    <div class="box">${P.buyList.map(b=>`<div class="buyrow">
-        <input type="text" id="bn-${b.id}" value="${esc(b.name)}" data-act="bname" data-id="${b.id}" aria-label="品目名">
-        <input type="number" inputmode="numeric" min="0" step="100" id="bp-${b.id}" value="${b.price}" data-act="bprice" data-id="${b.id}" aria-label="買取金額">
-        <button type="button" class="x" data-act="bdel" data-id="${b.id}" aria-label="削除">✕</button></div>`).join("")}
-      <button type="button" class="btn dash" data-act="badd">＋ 品目を追加</button></div>`;
-}
 
 /* ---------- events ---------- */
-function showTab(t){
-  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected", b.dataset.tab===t));
-  $("#page-est").hidden = t!=="est"; $("#page-set").hidden = t!=="set";
-  if(t==="set") renderSet(); else render();
-  window.scrollTo(0,0);
-}
-document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
 
 document.addEventListener("click", async e => {
   const t = e.target.closest("[data-act]"); if(!t || t.tagName==="INPUT" || t.tagName==="SELECT") return;
   const a = t.dataset.act;
-  if(a==="frac"){ job.frac = parseFloat(t.dataset.v); render(); }
+  if(a==="qset"){ job.qty = +t.dataset.v; render(); }
+  else if(a==="qinc"){ job.qty = Math.min(40, (job.qty||0) + 1); render(); }
+  else if(a==="qdec"){ if(job.qty) job.qty -= 1; render(); }
+  else if(a==="ironinc"||a==="irondec"){ job.iron = Math.max(0, (parseFloat(job.iron)||0) + (a==="ironinc"?5:-5)); render(); }
   else if(a==="inc"||a==="dec"){
     const g = t.dataset.g, k = t.dataset.k, tgt = g ? job[g] : job;
     tgt[k] = Math.max(0, (tgt[k]||0) + (a==="inc"?1:-1)); render();
   }
   else if(a==="special"){ const v=t.dataset.v; job.special = job.special.includes(v) ? job.special.filter(x=>x!==v) : [...job.special, v]; render(); }
-  else if(a==="step"){ const n=+t.dataset.to; if(n>=2 && job.frac===null) step=1; else step=n; render(); window.scrollTo(0,0); }
+  else if(a==="step"){ const n=+t.dataset.to; if(n>=2 && job.qty===null) step=1; else step=n; render(); window.scrollTo(0,0); }
   else if(a==="photo"){ $("#cam").click(); }
   else if(a==="delc"){ const c = job.cands.find(x=>x.id===+t.dataset.id); if(c) URL.revokeObjectURL(c.url); job.cands = job.cands.filter(x=>x.id!==+t.dataset.id); render(); }
   else if(a==="chk"){ const c = job.cands.find(x=>x.id===+t.dataset.id); c.checks[t.dataset.k] = !c.checks[t.dataset.k]; render(); }
@@ -392,21 +395,16 @@ document.addEventListener("click", async e => {
     if(!confirm("この現場の入力をすべて消します。よろしいですか？")) return;
     job.cands.forEach(c=>URL.revokeObjectURL(c.url)); job = newJob(); step = 1; render(); window.scrollTo(0,0);
   }
-  else if(a==="badd"){ P.buyList.push({id:++seq + Date.now()%100000, name:"", price:0}); saveP(); renderSet(); }
-  else if(a==="bdel"){ P.buyList = P.buyList.filter(b=>b.id!==+t.dataset.id); saveP(); renderSet(); }
 });
 document.addEventListener("change", e => {
   const t = e.target, a = t.dataset && t.dataset.act; if(!a) return;
   if(a==="cond"){ job.cond[t.dataset.k] = t.checked; renderSummary(); }
   else if(a==="cat"){ job.cands.find(x=>x.id===+t.dataset.id).cat = t.value; render(); }
-  else if(a==="tax"){ P.tax = t.checked; saveP(); renderSummary(); }
 });
 document.addEventListener("input", e => {
   const t = e.target, a = t.dataset && t.dataset.act; if(!a) return;
-  if(a==="memo"){ job.cands.find(x=>x.id===+t.dataset.id).memo = t.value; }
-  else if(a==="price"){ const [g,k] = t.dataset.path.split("."); const v = parseFloat(t.value)||0; if(k) P[g][k]=v; else P[g]=v; saveP(); renderSummary(); }
-  else if(a==="bname"){ P.buyList.find(b=>b.id===+t.dataset.id).name = t.value; saveP(); }
-  else if(a==="bprice"){ P.buyList.find(b=>b.id===+t.dataset.id).price = parseFloat(t.value)||0; saveP(); renderSummary(); }
+  if(a==="iron"){ job.iron = Math.max(0, parseFloat(t.value)||0); $("#iron-amt").textContent = yen(Math.round(job.iron*P.iron)); renderSummary(); }
+  else if(a==="memo"){ job.cands.find(x=>x.id===+t.dataset.id).memo = t.value; }
 });
 $("#cam").addEventListener("change", e => {
   [...e.target.files].forEach(f => job.cands.push({id:++seq, file:f, url:URL.createObjectURL(f), cat:"家電", memo:"", checks:{}}));

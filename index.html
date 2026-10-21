@@ -172,11 +172,9 @@ table.bd tr.tot td{font-weight:700;border-bottom:0;font-size:16px}
     <nav class="tabs" role="tablist">
       <button type="button" role="tab" data-tab="measure" aria-selected="true">測る</button>
       <button type="button" role="tab" data-tab="est" aria-selected="false">見積</button>
-      <button type="button" role="tab" data-tab="set" aria-selected="false">単価設定</button>
     </nav>
     <div id="tab-measure" class="tab"></div>
     <div id="tab-est" class="tab" hidden></div>
-    <div id="tab-set" class="tab" hidden></div>
     <footer id="summary"></footer>
   </aside>
 </div>
@@ -203,7 +201,7 @@ const DEF_PRICES = {flat:150, slope:250, disposal:60, travel:0, min:8000, tax:tr
 function load(k, d){ try{ const v = JSON.parse(localStorage.getItem(k)); return v ? {...d, ...v} : {...d}; }catch(e){ return {...d}; } }
 function save(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 
-let prices = load("kusakari.prices", DEF_PRICES);
+const prices = {...DEF_PRICES};  /* 単価は社長のみ変更（このファイルを書き換える） */
 let job = {grass:1.0, disposal:true};
 let shapes = [], norms = [], seq = 0, drawing = null;
 
@@ -377,7 +375,7 @@ function calc(){
 /* ---------- panel rendering ---------- */
 function showTab(name){
   document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab===name));
-  ["measure","est","set"].forEach(t => $("#tab-"+t).hidden = t!==name);
+  ["measure","est"].forEach(t => $("#tab-"+t).hidden = t!==name);
 }
 document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
@@ -580,7 +578,6 @@ document.addEventListener("input", e => {
   }
 });
 
-renderSet();
 renderAll();
 </script>
 </body>
