@@ -27,6 +27,7 @@
   --accent:#7fbf6a; --accent-fg:#0f160d; --soft:#253021; --pick-bg:#3a3510;
   --warn:#ff7c86; --warn-bg:#3a1a1d; --band:#0d140b; --band-fg:#e8eee3; color-scheme:dark}
 
+[hidden]{display:none!important}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
@@ -35,10 +36,11 @@ button{cursor:pointer}
 :focus-visible{outline:3px solid var(--pick);outline-offset:2px}
 .num{font-variant-numeric:tabular-nums}
 
-header.top{background:var(--band);color:var(--band-fg);padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 4px max(16px,env(safe-area-inset-left,0px))}
+header.top{position:sticky;top:0;z-index:15;background:var(--band);color:var(--band-fg);padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 4px max(16px,env(safe-area-inset-left,0px))}
 header.top .in{max-width:640px;margin:0 auto}
-header.top .home{display:inline-block;color:var(--band-fg);opacity:.8;font-weight:700;text-decoration:none;font-size:13px;margin-bottom:4px;min-height:32px;line-height:32px}
-header.top h1{font-size:17px;margin:0 0 6px}
+header.top .home{display:inline-block;color:var(--band-fg);opacity:.8;font-weight:700;text-decoration:none;font-size:15px;margin:0 0 2px -4px;padding:0 4px;min-height:44px;line-height:44px}
+header.top .in{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+header.top h1{font-size:17px;margin:0}
 .tabs{display:flex;gap:4px}
 .tabs button{height:42px;padding:0 16px;border:0;background:none;color:var(--band-fg);opacity:.7;font-weight:700;border-bottom:3px solid transparent}
 .tabs button[aria-selected="true"]{opacity:1;border-bottom-color:var(--band-num)}
@@ -73,7 +75,7 @@ h3{font-size:13px;letter-spacing:.06em;color:var(--muted);margin:4px 0 0}
 .qtyprice{font-size:18px;font-weight:700}
 .qtyctl{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
 .qtyctl .btn{min-height:56px;font-size:17px;background:var(--soft)}
-.kg{width:80px;height:44px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel);text-align:right;font-size:17px;font-weight:700}
+.kg{width:84px;height:44px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel);text-align:right;font-size:17px;font-weight:700}
 .ctr{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .ctr:last-child{border-bottom:0}
 .ctr .l{min-width:0}
@@ -94,7 +96,7 @@ h3{font-size:13px;letter-spacing:.06em;color:var(--muted);margin:4px 0 0}
 .cand{border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;grid-template-columns:96px 1fr;gap:10px;background:var(--panel)}
 .cand img{width:96px;height:96px;object-fit:cover;border-radius:8px;max-width:100%}
 .cand .r{display:grid;gap:6px;min-width:0}
-.cand select,.cand input[type=text]{width:100%;height:40px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel)}
+.cand select,.cand input[type=text]{width:100%;height:44px;font-size:16px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel)}
 .cand .top{display:flex;gap:6px;align-items:center}
 .cand .verdict{font-size:13px;font-weight:700}
 .cand .verdict.ok{color:var(--accent)}
@@ -119,12 +121,15 @@ table.bd tr.minus td:last-child{color:var(--accent);font-weight:700}
 .buyrow input{height:42px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel);width:100%;min-width:0}
 .buyrow input[type=number]{text-align:right}
 
-#summary{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--band);color:var(--band-fg);padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
-#summary .in{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:12px}
+#summary{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--band);color:var(--band-fg);padding:10px max(12px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));box-shadow:0 -4px 16px #0003}
+#summary .in{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:8px}
 #summary .s{flex:1;min-width:0}
 #summary .k{font-size:11px;opacity:.8;letter-spacing:.05em}
-#summary .v{font-size:22px;font-weight:700;color:var(--band-num);line-height:1.2}
-#summary button{height:46px;padding:0 14px;border:2px solid var(--band-num);border-radius:10px;background:none;color:var(--band-num);font-weight:700;flex:none}
+#summary .v{font-size:21px;font-weight:700;color:var(--band-num);line-height:1.2}
+#summary .v{white-space:nowrap}
+#summary .back{height:50px;padding:0 10px;border:1px solid #ffffff66;border-radius:10px;background:none;color:var(--band-fg);font-weight:700;flex:none}
+#summary .next{height:50px;padding:0 16px;border:0;border-radius:10px;background:var(--band-num);color:#1b2318;font-weight:700;font-size:16px;flex:none;max-width:55%}
+#summary .next:disabled{opacity:.4}
 
 #customer{position:fixed;inset:0;z-index:50;background:var(--panel);overflow:auto;padding:calc(24px + env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px))}
 #customer .wrap{max-width:640px;margin:0 auto;display:grid;gap:16px}
@@ -267,8 +272,7 @@ function render(){
       <div class="chips">${[1,2,3,4,6,8,10,12].map(v=>`<button type="button" class="chip" data-act="qset" data-v="${v}" aria-pressed="${q===v}">${qtyShort(v)}</button>`).join("")}
         <button type="button" class="chip" data-act="qset" data-v="0" aria-pressed="${q===0}">処分なし（買取のみ）</button></div>
       <div class="box"><p class="hint">量の目安　1/4台：家電2〜3点＋段ボール数箱　／　半分：単身の部屋の家財が少なめ　／　1台：6畳一間の家財がいっぱい</p></div>
-      <div class="nav"><span></span><button type="button" class="btn main" data-act="step" data-to="2" ${q===null?"disabled":""}>次へ：追加料金</button></div>
-      ${q===null?`<p class="hint">量を選ぶと次へ進めます。</p>`:""}`;
+      ${q===null?`<p class="hint">量を選ぶと、下の「次へ」が押せます。</p>`:""}`;
   }else if(step===2){
     h += `<h2>2. 追加料金がかかる物・条件</h2>
       <h3>家電リサイクル4品目（リサイクル料金＋運搬手数料）</h3>
@@ -281,9 +285,7 @@ function render(){
         ${ctr(null,"staff","作業員の追加（人）",P.staff)}</div>
       <h3>その場で金額を出さない物</h3>
       <div class="chips">${SPECIAL.map(s=>`<button type="button" class="chip" data-act="special" data-v="${s}" aria-pressed="${job.special.includes(s)}">${s}</button>`).join("")}</div>
-      ${job.special.length?`<div class="warnbox">${job.special.join("・")} は別途お見積りです。写真を撮って社長に送ってください。</div>`:""}
-      <div class="nav"><button type="button" class="btn" data-act="step" data-to="1">戻る</button>
-        <button type="button" class="btn main" data-act="step" data-to="3">次へ：買取</button></div>`;
+      ${job.special.length?`<div class="warnbox">${job.special.join("・")} は別途お見積りです。写真を撮って社長に送ってください。</div>`:""}`;
   }else if(step===3){
     h += `<h2>3. 買い取れる物はある？</h2>
       <h3>決まった金額で買い取る物</h3>
@@ -313,9 +315,7 @@ function render(){
         </div>`).join("") + `
         <button type="button" class="btn dash" data-act="photo">＋ 写真を撮って追加</button>
         ${job.cands.length?`<button type="button" class="btn" data-act="share">写真と内容を送る（LINE・メールなど）</button>`:""}
-      </div>
-      <div class="nav"><button type="button" class="btn" data-act="step" data-to="2">戻る</button>
-        <button type="button" class="btn main" data-act="step" data-to="4">次へ：見積</button></div>`;
+      </div>`;
   }else{
     const c = calc();
     h += `<h2>4. 見積</h2>
@@ -334,8 +334,7 @@ function render(){
       </table>
       ${job.special.length?`<div class="warnbox">別途見積：${job.special.join("・")}</div>`:""}
       ${c.pending?`<p class="hint">査定待ちの品が ${c.pending}点 あります。買取できた場合は後日この金額から値引きします。</p>`:""}
-      <button type="button" class="btn main" data-act="cust">お客様に見せる</button>
-      <div class="nav"><button type="button" class="btn" data-act="step" data-to="3">戻る</button><span></span></div>`;
+`;
   }
   h += `<button type="button" class="btn dash" data-act="reset">新しい現場にする（全部消す）</button>`;
   el.innerHTML = h;
@@ -345,10 +344,12 @@ function esc(s){ return String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&
 
 function renderSummary(){
   const c = calc();
-  $("#summary").innerHTML = `<div class="in"><div class="s num">
-    <div class="k">${c.pay>=0?"お支払い金額"+(P.tax?"（税込）":""):"お客様へお支払い"}</div>
-    <div class="v">${yen(Math.abs(c.pay))}</div></div>
-    <button type="button" data-act="cust">お客様に見せる</button></div>`;
+  const label = {1:"次へ：追加料金", 2:"次へ：買取", 3:"見積へ", 4:"お客様に見せる"}[step];
+  $("#summary").innerHTML = `<div class="in">
+    ${step>1 ? `<button type="button" class="back" data-act="step" data-to="${step-1}">‹ 戻る</button>` : ""}
+    <div class="s num"><div class="k">${c.pay>=0 ? "お支払い"+(P.tax?"（税込）":"") : "お客様へお支払い"}</div>
+      <div class="v">${yen(Math.abs(c.pay))}</div></div>
+    <button type="button" class="next" ${step===4 ? 'data-act="cust"' : `data-act="step" data-to="${step+1}"`} ${step===1 && job.qty===null ? "disabled" : ""}>${label}</button></div>`;
 }
 
 function showCustomer(){

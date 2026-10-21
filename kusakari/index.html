@@ -27,6 +27,7 @@
   --accent:#7fbf6a; --accent-fg:#0f160d; --soft:#253021;
   --band:#0d140b; --band-fg:#e8eee3; --band-num:#ffe14d; color-scheme:dark}
 
+[hidden]{display:none!important}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
@@ -39,6 +40,18 @@ button{cursor:pointer}
 #mapwrap{position:relative;flex:1 1 55%;min-height:260px}
 #map{position:absolute;inset:0;background:#556}
 #panel{flex:0 0 auto;max-height:45dvh;display:flex;flex-direction:column;background:var(--panel);border-top:1px solid var(--line)}
+#grab{display:none}
+@media (max-width:819px){
+  #app{display:block;position:relative;height:100dvh;overflow:hidden}
+  #mapwrap{position:absolute;inset:0}
+  #panel{position:absolute;left:0;right:0;bottom:0;z-index:1100;max-height:46dvh;border-radius:18px 18px 0 0;box-shadow:0 -6px 24px #0005;border-top:0;transition:max-height .2s ease}
+  #panel.open{max-height:86dvh}
+  #panel.drawing{display:none}
+  #grab{display:flex;justify-content:center;align-items:center;height:24px;width:100%;border:0;background:none;flex:none}
+  #grab span{width:44px;height:5px;border-radius:3px;background:var(--line)}
+  .tabs button{height:40px}
+  .tab{padding-top:10px;gap:12px}
+}
 @media (min-width:820px){
   #app{flex-direction:row}
   #mapwrap{flex:1 1 auto}
@@ -46,18 +59,25 @@ button{cursor:pointer}
 }
 
 /* search */
-#searchbar{position:absolute;z-index:1000;top:calc(10px + env(safe-area-inset-top,0px));left:max(10px,env(safe-area-inset-left,0px));right:64px;display:flex;gap:6px;max-width:440px}
-#searchbar input{flex:1;min-width:0;height:44px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:0 2px 8px #0003}
-#searchbar button{height:44px;padding:0 14px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-fg);font-weight:700;box-shadow:0 2px 8px #0003}
-#results{position:absolute;z-index:1000;top:calc(60px + env(safe-area-inset-top,0px));left:max(10px,env(safe-area-inset-left,0px));right:64px;max-width:440px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 4px 14px #0004;overflow:hidden}
+#topbar{position:absolute;z-index:1000;top:calc(8px + env(safe-area-inset-top,0px));left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));display:grid;gap:8px;pointer-events:none}
+#topbar .row{display:flex;gap:6px;align-items:center;max-width:560px}
+#topbar .row.sub{justify-content:space-between;max-width:none}
+#topbar .row > *, #topbar .grp > *{pointer-events:auto}
+#topbar .grp{display:flex;gap:6px}
+.pill{height:44px;min-width:44px;padding:0 14px;border:0;border-radius:22px;background:var(--panel);color:var(--fg);font-weight:700;font-size:15px;box-shadow:0 2px 8px #0004;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap}
+.pill.home{font-size:28px;line-height:1;padding:0 0 4px}
+.credit{font-size:11px;background:#ffffffd9;color:#222;padding:2px 6px;border-radius:4px;align-self:flex-start}
+#searchbar{flex:1;display:flex;gap:6px;min-width:0}
+#searchbar input{flex:1;min-width:0;height:44px;padding:0 16px;border:0;border-radius:22px;font-size:16px;background:var(--panel);box-shadow:0 2px 8px #0003}
+#searchbar button{height:44px;padding:0 16px;border:0;border-radius:22px;background:var(--accent);color:var(--accent-fg);font-weight:700;box-shadow:0 2px 8px #0003}
+#results{position:absolute;z-index:1001;top:calc(58px + env(safe-area-inset-top,0px));left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));max-width:560px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 4px 14px #0004;overflow:hidden}
 #results button{display:block;width:100%;text-align:left;padding:12px;border:0;border-bottom:1px solid var(--line);background:none}
 #results button:last-child{border-bottom:0}
 #results .none{padding:12px;color:var(--muted)}
 
-.fab{position:absolute;z-index:1000;left:max(10px,env(safe-area-inset-left,0px));bottom:12px;height:44px;padding:0 14px;border:0;border-radius:22px;background:var(--panel);color:var(--fg);font-weight:700;box-shadow:0 2px 8px #0004}
 
 /* drawing bar */
-#drawbar{position:absolute;z-index:1001;left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));bottom:8px;background:var(--panel);border-radius:10px;box-shadow:0 4px 16px #0005;padding:10px;display:grid;gap:8px}
+#drawbar{position:absolute;z-index:1001;left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));bottom:calc(8px + env(safe-area-inset-bottom,0px));background:var(--panel);border-radius:10px;box-shadow:0 4px 16px #0005;padding:10px;display:grid;gap:8px}
 #drawbar .msg{font-weight:700;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
 #drawbar .msg .tag{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 #drawbar .btns{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
@@ -67,7 +87,6 @@ button{cursor:pointer}
 
 /* panel */
 .tabs{display:flex;border-bottom:1px solid var(--line)}
-.tabs .home{display:flex;align-items:center;padding:0 12px;color:var(--muted);font-weight:700;text-decoration:none;border-right:1px solid var(--line);white-space:nowrap}
 .tabs button{flex:1;height:46px;border:0;background:none;font-weight:700;color:var(--muted);border-bottom:3px solid transparent}
 .tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
 .tab{flex:1 1 auto;overflow:auto;padding:14px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));display:grid;gap:14px;align-content:start}
@@ -95,12 +114,12 @@ h2{font-size:13px;letter-spacing:.06em;color:var(--muted);margin:0;font-weight:7
 .item .name{font-weight:700;flex:1;min-width:0}
 .item .ar{font-weight:700}
 .item .sub{color:var(--muted);font-size:13px}
-.item select{width:100%;height:42px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:0 8px}
+.item select{width:100%;height:44px;font-size:16px;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:0 8px}
 .x{width:36px;height:36px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--muted);flex:none}
 .empty{color:var(--muted);font-size:14px;border:1px dashed var(--line);border-radius:10px;padding:12px}
 
 .norm{display:grid;grid-template-columns:1fr auto 1fr auto auto;gap:6px;align-items:center}
-.norm input{width:100%;min-width:0;height:42px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel);text-align:right}
+.norm input{width:100%;min-width:0;height:44px;font-size:16px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--panel);text-align:right}
 .norm .u{color:var(--muted);font-size:13px}
 .norm .ar{min-width:64px;text-align:right;font-weight:700}
 .add{min-height:44px;border:1px dashed var(--muted);border-radius:10px;background:none;font-weight:700;color:var(--fg)}
@@ -117,12 +136,14 @@ table.bd td{padding:7px 0;border-bottom:1px solid var(--line);vertical-align:top
 table.bd td:last-child{text-align:right;white-space:nowrap;padding-left:8px}
 table.bd tr.tot td{font-weight:700;border-bottom:0;font-size:16px}
 
-#summary{background:var(--band);color:var(--band-fg);padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:12px}
-#summary .s{flex:1;min-width:0;display:flex;gap:16px;flex-wrap:wrap}
-#summary .k{font-size:11px;opacity:.8;letter-spacing:.05em}
-#summary .v{font-size:20px;font-weight:700;color:var(--band-num);line-height:1.2}
-#summary .v small{font-size:12px;color:var(--band-fg);font-weight:400;margin-left:3px}
-#summary button{height:46px;padding:0 14px;border:2px solid var(--band-num);border-radius:10px;background:none;color:var(--band-num);font-weight:700;flex:none}
+#summary{background:var(--band);color:var(--band-fg);padding:10px max(12px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:8px}
+#summary .s{flex:1;min-width:0;display:grid}
+#summary .v{font-size:19px;font-weight:700;color:var(--band-num);line-height:1.25;white-space:nowrap}
+#summary .v small{font-size:12px;color:var(--band-fg);font-weight:400;margin-left:2px}
+#summary .v2{font-size:14px;font-weight:700;line-height:1.25}
+#summary .back{height:48px;padding:0 10px;border:1px solid #ffffff66;border-radius:10px;background:none;color:var(--band-fg);font-weight:700;flex:none}
+#summary .next{height:48px;padding:0 16px;border:0;border-radius:10px;background:var(--band-num);color:#1b2318;font-weight:700;font-size:16px;flex:none;max-width:52%}
+#summary .next:disabled{opacity:.4}
 
 /* vertex + labels */
 .vx{border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #0008,0 1px 4px #0008}
@@ -152,12 +173,20 @@ table.bd tr.tot td{font-weight:700;border-bottom:0;font-size:16px}
 <div id="app">
   <div id="mapwrap">
     <div id="map" aria-label="地図"></div>
-    <form id="searchbar" role="search">
-      <input id="q" type="search" placeholder="住所で探す（例：中津川市本町）" autocomplete="off" enterkeyhint="search">
-      <button type="submit">検索</button>
-    </form>
+    <div id="topbar">
+      <div class="row">
+        <a class="pill home" href="../" data-home aria-label="メニューに戻る">‹</a>
+        <form id="searchbar" role="search">
+          <input id="q" type="search" placeholder="住所で探す" autocomplete="off" enterkeyhint="search">
+          <button type="submit">検索</button>
+        </form>
+      </div>
+      <div class="row sub">
+        <span class="credit">出典：国土地理院</span>
+        <span class="grp"><button type="button" class="pill" id="layer">地図</button><button type="button" class="pill" id="locate">◎ 現在地</button></span>
+      </div>
+    </div>
     <div id="results" hidden></div>
-    <button id="locate" class="fab" type="button">◎ 現在地</button>
     <div id="drawbar" hidden>
       <div class="msg"><span id="drawmsg"></span><span id="drawarea" class="num"></span></div>
       <div class="btns">
@@ -170,8 +199,8 @@ table.bd tr.tot td{font-weight:700;border-bottom:0;font-size:16px}
   </div>
 
   <aside id="panel">
+    <button type="button" id="grab" aria-label="パネルを広げる・縮める"><span></span></button>
     <nav class="tabs" role="tablist">
-      <a class="home" href="../" data-home>← メニュー</a>
       <button type="button" role="tab" data-tab="measure" aria-selected="true">測る</button>
       <button type="button" role="tab" data-tab="est" aria-selected="false">見積</button>
     </nav>
@@ -215,12 +244,16 @@ const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(
 
 /* ---------- map ---------- */
 const attr = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">国土地理院</a>';
-const map = L.map("map", {zoomControl:false, maxZoom:21}).setView([35.4876, 137.5004], 15);
+const map = L.map("map", {zoomControl:false, attributionControl:false, maxZoom:21}).setView([35.4876, 137.5004], 15);
 const photo = L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg", {maxZoom:21, maxNativeZoom:18, attribution:attr}).addTo(map);
 const std = L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png", {maxZoom:21, maxNativeZoom:18, attribution:attr});
-L.control.layers({"航空写真":photo, "地図":std}, null, {position:"topright"}).addTo(map);
-L.control.zoom({position:"bottomright"}).addTo(map);
-L.control.scale({imperial:false, position:"bottomright"}).addTo(map);
+const wide = matchMedia("(min-width:820px)").matches;
+if(wide){ L.control.zoom({position:"bottomright"}).addTo(map); L.control.scale({imperial:false, position:"bottomleft"}).addTo(map); }
+$("#layer").addEventListener("click", () => {
+  if(map.hasLayer(photo)){ map.removeLayer(photo); std.addTo(map); $("#layer").textContent = "写真"; }
+  else{ map.removeLayer(std); photo.addTo(map); $("#layer").textContent = "地図"; }
+});
+$("#grab").addEventListener("click", () => $("#panel").classList.toggle("open"));
 
 /* area in m² (local flat projection; accurate for house-lot sizes) */
 function area(pts){
@@ -385,7 +418,7 @@ function renderAll(){ renderDrawbar(); renderMeasure(); renderEst(); renderSumma
 
 function renderDrawbar(){
   const bar = $("#drawbar");
-  bar.hidden = !drawing; $("#locate").hidden = !!drawing;
+  bar.hidden = !drawing; $("#panel").classList.toggle("drawing", !!drawing);
   if(!drawing) return;
   const n = drawing.pts.length;
   $("#drawmsg").innerHTML = `<span class="tag" style="background:var(${drawing.kind==="cut"?"--cut":"--ex"})"></span>` +
@@ -401,8 +434,8 @@ function cutDone(){ return shapes.some(s=>s.kind==="cut" && s.closed); }
 function goStep(n){
   if(drawing) cancelDraw();
   if(n >= 2 && !cutDone()) n = 1;
-  if(n === 4){ step = 4; renderAll(); showTab("est"); return; }
-  step = n; renderAll();
+  if(n === 4){ step = 4; renderAll(); showTab("est"); $("#panel").classList.add("open"); return; }
+  step = n; renderAll(); showTab("measure"); $("#panel").classList.remove("open");
 }
 function itemHtml(s){
   const a = area(s.pts);
@@ -428,19 +461,15 @@ function renderMeasure(){
   let h = stepperHtml();
   if(step === 1){
     h += `<h2>ステップ1　刈る範囲を囲む</h2>
-      <p class="hint">航空写真で敷地の角を順にタップし、「完了」を押します。点はドラッグで動かせます。離れた場所が複数あれば、もう一度押して追加できます。</p>
+      <p class="hint">ボタンを押してから、地図で敷地の角を順にタップします。点は指で動かせます。</p>
       <button type="button" class="big cut" data-act="new-cut"><span class="sw cut"></span>${cuts.length ? "刈る範囲をもう1つ囲む" : "刈る範囲を囲む"}</button>`;
     h += cuts.length ? `<div class="list">${cuts.map(itemHtml).join("")}</div>` : `<div class="empty">まだ囲んでいません。</div>`;
-    h += `<div class="nav"><span></span>
-      <button type="button" class="next" data-act="step" data-to="2" ${cuts.length ? "" : "disabled"}>次へ：建物を除く</button></div>
-      ${cuts.length ? "" : `<p class="hint">刈る範囲を1つ以上囲むと次へ進めます。</p>`}`;
+    h += `${cuts.length ? "" : `<p class="hint">囲み終わると、下の「次へ」が押せます。</p>`}`;
   }else if(step === 2){
     h += `<h2>ステップ2　建物など刈らない所を除く</h2>
-      <p class="hint">家・倉庫・駐車場・畑など、刈らない所を囲みます。囲んだ分は自動で差し引かれます。</p>
+      <p class="hint">家・倉庫・駐車場など刈らない所を囲むと、自動で差し引かれます。</p>
       <button type="button" class="big ex" data-act="new-ex"><span class="sw ex"></span>${exs.length ? "除く所をもう1つ囲む" : "除く所を囲む"}</button>`;
     h += exs.length ? `<div class="list">${exs.map(itemHtml).join("")}</div>` : "";
-    h += `<div class="nav"><button type="button" class="back" data-act="step" data-to="1">戻る</button>
-      <button type="button" class="next" data-act="step" data-to="3">${exs.length ? "次へ：法面" : "除く所はない → 次へ"}</button></div>`;
   }else{
     h += `<h2>ステップ3　法面・土手（地図では測れない斜面）</h2>
       <p class="hint">斜面の「長さ」と、上から下までの「斜面の幅」を入力します（歩測やメジャーで）。</p>
@@ -453,11 +482,9 @@ function renderMeasure(){
           <span class="ar num" id="na-${n.id}">${fmt(a)}㎡</span>
           <button type="button" class="x" data-act="del-norm" data-id="${n.id}" aria-label="法面を削除">✕</button>
         </div>`;
-      }).join("") + `<button type="button" class="add" data-act="add-norm">＋ 法面を追加</button></div>
-      <div class="nav"><button type="button" class="back" data-act="step" data-to="2">戻る</button>
-        <button type="button" class="next" data-act="step" data-to="4">${norms.length ? "次へ：見積" : "法面はない → 見積へ"}</button></div>`;
+      }).join("") + `<button type="button" class="add" data-act="add-norm">＋ 法面を追加</button></div>`;
     if(step === 4){
-      h += `<p class="hint">見積は「見積」タブに出ています。範囲を直すときは「戻る」で前のステップへ。</p>`;
+      h += `<p class="hint">見積は「見積」タブに出ています。範囲を直すときは下の「戻る」で前のステップへ。</p>`;
     }
   }
   h += `<button type="button" class="add" data-act="reset" style="margin-top:6px">新しい現場にする（全部消す）</button>`;
@@ -492,31 +519,15 @@ function renderEst(){
     </table>`;
 }
 
-function renderSet(){
-  const el = $("#tab-set");
-  const f = (k, label, unit) => `<div class="field"><label for="p-${k}">${label}</label>
-    <input type="number" inputmode="numeric" min="0" step="10" id="p-${k}" value="${prices[k]}" data-act="price" data-k="${k}" aria-label="${label}（${unit}）"></div>`;
-  el.innerHTML = `
-    <p class="hint">最初に入っている金額は仮の例です。自社の単価に変えてください。この端末に保存されます。</p>
-    ${f("flat","平地の単価（円/㎡）","円/㎡")}
-    ${f("slope","法面の単価（円/㎡）","円/㎡")}
-    ${f("disposal","集草・処分（円/㎡）","円/㎡")}
-    ${f("travel","出張費（円）","円")}
-    ${f("min","最低料金（円）","円")}
-    <label class="check"><input type="checkbox" id="p-tax" data-act="tax" ${prices.tax?"checked":""}> 消費税10%を加えて表示する</label>
-    <h2>起伏の補正について</h2>
-    <p class="hint">地図で測れるのは真上から見た面積です。段差や傾斜がある範囲は、実際に刈る面積が広くなるため、範囲ごとに +5%・+15%・+40% を選べます。</p>`;
-}
-
 function renderSummary(){
   const c = calc();
+  const hasEx = shapes.some(s=>s.kind==="ex" && s.closed);
+  const label = step===1 ? "次へ" : step===2 ? (hasEx ? "次へ" : "除く所なし ›") : step===3 ? (norms.length ? "見積へ" : "法面なし ›") : "お客様に見せる";
   $("#summary").innerHTML = `
-    <div class="s num">
-      <div><div class="k">作業面積</div><div class="v">${fmt(c.total)}<small>㎡</small> <small>${fmt1(c.total/TSUBO)}坪</small></div></div>
-      <div><div class="k">見積${prices.tax?"（税込）":""}</div><div class="v">${yen(c.grand)}</div></div>
-    </div>
-    <button type="button" id="show-cust">お客様に見せる</button>`;
-  $("#show-cust").addEventListener("click", showCustomer);
+    ${step>1 ? `<button type="button" class="back" data-act="step" data-to="${step-1}">‹ 戻る</button>` : ""}
+    <div class="s num"><div class="v">${fmt(c.total)}<small>㎡</small><small>${fmt1(c.total/TSUBO)}坪</small></div>
+      <div class="v2">${yen(c.grand)}${prices.tax?"（税込）":""}</div></div>
+    <button type="button" class="next" ${step===4 ? 'data-act="cust"' : `data-act="step" data-to="${step+1}"`} ${step===1 && !cutDone() ? "disabled" : ""}>${label}</button>`;
 }
 
 function showCustomer(){
@@ -552,6 +563,7 @@ document.addEventListener("click", e => {
   else if(act==="new-ex") newShape("ex");
   else if(act==="del"){ const s = shapes.find(x=>x.id===id); if(s){ removeShape(s); if(!cutDone()) step = 1; renderAll(); } }
   else if(act==="step"){ goStep(+t.dataset.to); }
+  else if(act==="cust"){ showCustomer(); }
   else if(act==="add-norm"){ norms.push({id:++seq, len:"", w:""}); renderAll(); const i = $("#nl-"+seq); if(i) i.focus(); }
   else if(act==="del-norm"){ norms = norms.filter(n=>n.id!==id); renderAll(); }
   else if(act==="reset"){
