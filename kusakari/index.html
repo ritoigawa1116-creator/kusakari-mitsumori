@@ -30,6 +30,7 @@
 [hidden]{display:none!important}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -61,9 +62,12 @@ button{cursor:pointer}
 /* search */
 #topbar{position:absolute;z-index:1000;top:calc(8px + env(safe-area-inset-top,0px));left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));display:grid;gap:8px;pointer-events:none}
 #topbar .row{display:flex;gap:6px;align-items:center;max-width:560px}
-#topbar .row.sub{justify-content:space-between;max-width:none}
+#topbar .row.sub{justify-content:space-between;align-items:flex-start;max-width:none}
 #topbar .row > *, #topbar .grp > *{pointer-events:auto}
-#topbar .grp{display:flex;gap:6px}
+#topbar .grp{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:none}
+.pill.tool{flex-direction:column;width:60px;height:56px;min-width:0;padding:4px 0;border-radius:14px;gap:2px;font-size:11px;line-height:1.1}
+.pill.tool svg{width:22px;height:22px}
+.pill.tool span{white-space:nowrap;max-width:56px;overflow:hidden}
 .pill{height:44px;min-width:44px;padding:0 14px;border:0;border-radius:22px;background:var(--panel);color:var(--fg);font-weight:700;font-size:15px;box-shadow:0 2px 8px #0004;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap}
 .pill.home{font-size:28px;line-height:1;padding:0 0 4px}
 .credit{font-size:11px;background:#ffffffd9;color:#222;padding:2px 6px;border-radius:4px;align-self:flex-start}
@@ -183,7 +187,10 @@ table.bd tr.tot td{font-weight:700;border-bottom:0;font-size:16px}
       </div>
       <div class="row sub">
         <span class="credit">出典：国土地理院</span>
-        <span class="grp"><button type="button" class="pill" id="layer">地図</button><button type="button" class="pill" id="locate">◎ 現在地</button></span>
+        <span class="grp">
+          <button type="button" class="pill tool" id="locate" aria-label="現在地へ移動"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4" stroke="currentColor" stroke-width="2"/></svg><span id="loc-l">現在地</span></button>
+          <button type="button" class="pill tool" id="layer" aria-label="地図と航空写真を切り替え"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 8l10 5 10-5z" fill="currentColor"/><path d="m2 12 10 5 10-5M2 16l10 5 10-5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span id="layer-l">地図</span></button>
+        </span>
       </div>
     </div>
     <div id="results" hidden></div>
@@ -250,8 +257,8 @@ const std = L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.pn
 const wide = matchMedia("(min-width:820px)").matches;
 if(wide){ L.control.zoom({position:"bottomright"}).addTo(map); L.control.scale({imperial:false, position:"bottomleft"}).addTo(map); }
 $("#layer").addEventListener("click", () => {
-  if(map.hasLayer(photo)){ map.removeLayer(photo); std.addTo(map); $("#layer").textContent = "写真"; }
-  else{ map.removeLayer(std); photo.addTo(map); $("#layer").textContent = "地図"; }
+  if(map.hasLayer(photo)){ map.removeLayer(photo); std.addTo(map); $("#layer-l").textContent = "写真"; }
+  else{ map.removeLayer(std); photo.addTo(map); $("#layer-l").textContent = "地図"; }
 });
 $("#grab").addEventListener("click", () => $("#panel").classList.toggle("open"));
 
@@ -327,9 +334,9 @@ function drawShape(s){
 let here = null, hereLayers = [];
 function locate(addAsCorner){
   if(!navigator.geolocation){ alert("この端末では現在地を取得できません。"); return; }
-  const btn = $("#locate"); btn.textContent = "取得中…";
+  const btn = $("#loc-l"); btn.textContent = "取得中";
   navigator.geolocation.getCurrentPosition(pos => {
-    btn.textContent = "◎ 現在地";
+    btn.textContent = "現在地";
     here = L.latLng(pos.coords.latitude, pos.coords.longitude);
     hereLayers.forEach(l=>map.removeLayer(l));
     hereLayers = [
@@ -343,7 +350,7 @@ function locate(addAsCorner){
       map.setView(here, Math.max(map.getZoom(), 19));
     }
   }, err => {
-    btn.textContent = "◎ 現在地";
+    btn.textContent = "現在地";
     alert("現在地を取得できませんでした。端末の位置情報をオンにして、このページへの許可を確認してください。");
   }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
 }
