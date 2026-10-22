@@ -160,17 +160,21 @@ const sum = a => a.reduce((x,y)=>x+y,0);
 
 /* ---------- default prices (仮の値は社長が単価設定で変更) ---------- */
 const DEF = {
-  truck:{q1:12000, q2:20000, q3:28000, full:35000},
-  appl:{ac:3000, tv:4000, fr:6000, wa:5000},
-  hard:{tire:500, battery:1000, ext:2000, gas:2000, paint:500, mattress:3000},
+  /* 料金はすべて税込 */
+  truck:{q1:12000, q2:20000, q3:28000, full:33000},
+  /* 家電：リサイクル料金(2024年4月改定・税込の上限)を下回らない額。カッコ内がリサイクル料金 */
+  appl:{ac:3000 /*990*/, tvS:3000 /*1,870*/, tvL:4000 /*2,970*/, frS:5000 /*3,740*/, frL:6000 /*4,730*/, wa:5000 /*2,530*/},
+  hard:{tire:500, ext:2000, gas:2000, paint:500, mattress:3000},
   cond:{floor2:3000, far:2000, dismantle:3000},
   staff:8000, tax:true,
   iron:10,   /* 鉄くず 1kgあたりの買取額 */
   buyList:[
-    {id:1, name:"冷蔵庫（製造5年以内・動作品）", price:2000},
+    {id:11, name:"冷蔵庫 170L以下・1〜2人用（製造3年以内・動作品）", price:2000},
+    {id:12, name:"冷蔵庫 171〜400L・3〜4人用（製造3年以内・動作品）", price:2000},
+    {id:13, name:"冷蔵庫 401L以上・大型（製造3年以内・動作品）", price:2000},
     {id:2, name:"洗濯機（製造5年以内・動作品）", price:2000},
-    {id:3, name:"電動工具（動作品・1点）", price:500},
-    {id:4, name:"草刈機・チェーンソー（動作品）", price:2000}
+    {id:3, name:"電動工具（動作品・1点）", price:300},
+    {id:4, name:"草刈機・チェーンソー（動作品）", price:1000}
   ]
 };
 const LOADS = [
@@ -179,8 +183,9 @@ const LOADS = [
   {v:0.75, k:"q3", t:"3/4", g:"単身の部屋ひと通り"},
   {v:1,    k:"full", t:"1台分", g:"6畳一間の家財がいっぱい"}
 ];
-const APPL = [["ac","エアコン"],["tv","テレビ"],["fr","冷蔵庫・冷凍庫"],["wa","洗濯機・衣類乾燥機"]];
-const HARD = [["tire","タイヤ（1本）"],["battery","バッテリー（1個）"],["ext","消火器（1本）"],["gas","ガスボンベ（1本）"],["paint","塗料・オイル缶（1缶）"],["mattress","マットレス・ソファ（1点）"]];
+const APPL = [["ac","エアコン"],["tvS","テレビ 15型以下（ブラウン管・液晶とも）"],["tvL","テレビ 16型以上（ブラウン管・液晶とも）"],
+  ["frS","冷蔵庫・冷凍庫 170L以下（1〜2人用）"],["frL","冷蔵庫・冷凍庫 171L以上（3人以上用）"],["wa","洗濯機・衣類乾燥機"]];
+const HARD = [["tire","タイヤ（1本）"],["ext","消火器（1本）"],["gas","ガスボンベ（1本）"],["paint","塗料・オイル缶（1缶）"],["mattress","マットレス・ソファ（1点）"]];
 const COND = [["floor2","2階以上からの運び出し"],["far","トラックまで20m以上離れている"],["dismantle","解体・取り外しが必要"]];
 const SPECIAL = ["ピアノ","金庫","仏壇","大型物置","その他 特に大きい物"];
 const CATS = ["家電","家具","工具・農機具","ブランド品・貴金属","骨董・美術品・着物","その他"];
@@ -210,8 +215,8 @@ function calc(){
   const cond = sum(COND.map(([k])=>job.cond[k] ? P.cond[k] : 0));
   const staff = job.staff * P.staff;
   let sub = Math.round((truck+appl+hard+cond+staff)/100)*100;
-  const tax = P.tax ? Math.round(sub*0.1) : 0;
-  const service = sub + tax;
+  const tax = Math.round(sub*10/110);   /* 税込価格に含まれる消費税 */
+  const service = sub;
   const buyFixed = sum(P.buyList.map(b=>(job.buy[b.id]||0)*b.price));
   const buyIron = Math.round((job.iron||0) * P.iron);
   const buy = buyFixed + buyIron;
@@ -276,13 +281,14 @@ function render(){
   }else if(step===2){
     h += `<h2>2. 追加料金がかかる物・条件</h2>
       <h3>家電リサイクル4品目（リサイクル料金＋運搬手数料）</h3>
-      <p class="hint">買い取る物はここで数えず、次の「買取」で入れてください。</p>
+      <p class="hint">型数・容量は本体のシールで確認します。買い取る物はここで数えず、次の「買取」で入れてください。</p>
       <div class="box">${APPL.map(([k,l])=>ctr("appl",k,l,P.appl[k])).join("")}</div>
       <h3>処分しにくい物</h3>
       <div class="box">${HARD.map(([k,l])=>ctr("hard",k,l,P.hard[k])).join("")}</div>
       <h3>作業の条件</h3>
       <div class="box">${COND.map(([k,l])=>`<label class="chk"><input type="checkbox" data-act="cond" data-k="${k}" ${job.cond[k]?"checked":""}><span>${l}</span><small class="num">+${yen(P.cond[k])}</small></label>`).join("")}
-        ${ctr(null,"staff","作業員の追加（人）",P.staff)}</div>
+        ${ctr(null,"staff","3人目以降の作業員（1名ごと）",P.staff)}</div>
+      <p class="hint">料金は2人体制が基本です。3人以上で作業する場合だけ増やしてください。</p>
       <h3>その場で金額を出さない物</h3>
       <div class="chips">${SPECIAL.map(s=>`<button type="button" class="chip" data-act="special" data-v="${s}" aria-pressed="${job.special.includes(s)}">${s}</button>`).join("")}</div>
       ${job.special.length?`<div class="warnbox">${job.special.join("・")} は別途お見積りです。写真を撮って社長に送ってください。</div>`:""}`;
@@ -324,10 +330,9 @@ function render(){
         ${c.appl?`<tr><td>家電リサイクル品</td><td>${yen(c.appl)}</td></tr>`:""}
         ${c.hard?`<tr><td>処分しにくい物</td><td>${yen(c.hard)}</td></tr>`:""}
         ${c.cond?`<tr><td>作業条件の加算</td><td>${yen(c.cond)}</td></tr>`:""}
-        ${c.staff?`<tr><td>作業員追加 ${job.staff}名</td><td>${yen(c.staff)}</td></tr>`:""}
-        <tr><td>小計（100円単位）</td><td>${yen(c.sub)}</td></tr>
-        ${P.tax?`<tr><td>消費税 10%</td><td>${yen(c.tax)}</td></tr>`:""}
-        <tr><td><b>処分費用 合計</b></td><td><b>${yen(c.service)}</b></td></tr>
+        ${c.staff?`<tr><td>作業員追加（3人目以降）${job.staff}名</td><td>${yen(c.staff)}</td></tr>`:""}
+        <tr><td><b>処分費用 合計（税込）</b></td><td><b>${yen(c.service)}</b></td></tr>
+        <tr><td>　うち消費税（10%）</td><td>${yen(c.tax)}</td></tr>
         ${c.buyFixed?`<tr class="minus"><td>買取（決まった品目）</td><td>−${yen(c.buyFixed)}</td></tr>`:""}
         ${c.buyIron?`<tr class="minus"><td>鉄くず ${job.iron}kg × ${P.iron}円</td><td>−${yen(c.buyIron)}</td></tr>`:""}
         <tr class="tot"><td>${c.pay>=0?"お支払い金額":"お客様へお支払いする金額"}</td><td>${yen(Math.abs(c.pay))}</td></tr>
