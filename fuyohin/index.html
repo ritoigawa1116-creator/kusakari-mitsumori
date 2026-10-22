@@ -93,6 +93,14 @@ h3{font-size:13px;letter-spacing:.06em;color:var(--muted);margin:4px 0 0}
 .chip[aria-pressed="true"]{background:var(--pick-bg);border-color:var(--pick)}
 .warnbox{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px;font-weight:700;font-size:14px}
 
+.sel{display:grid;gap:4px;font-weight:700;font-size:14px}
+.sel select{height:48px;border:1px solid var(--line);border-radius:10px;padding:0 10px;background:var(--panel);font-size:16px;font-weight:400}
+.frres{font-size:20px;font-weight:700;padding:6px 0}
+.frres.ok{color:var(--accent)}
+.frres.no{color:var(--warn)}
+.frres small{display:block;font-size:13px;font-weight:400;color:var(--muted)}
+.ctr .c b{font-size:15px}
+.ctr .c button[data-act=frdel]{font-size:16px;width:40px;height:40px}
 .cand{border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;grid-template-columns:96px 1fr;gap:10px;background:var(--panel)}
 .cand img{width:96px;height:96px;object-fit:cover;border-radius:8px;max-width:100%}
 .cand .r{display:grid;gap:6px;min-width:0}
@@ -160,6 +168,14 @@ const sum = a => a.reduce((x,y)=>x+y,0);
 
 /* ---------- default prices (仮の値は社長が単価設定で変更) ---------- */
 function buy70(market){ return Math.floor(market*0.7/100)*100; }
+/* 冷蔵庫の買取：買い取るメーカーと、容量別の買取額（製造3年落ちの買取相場（低め）× 70%） */
+const FR_MAKERS_BUY = ["パナソニック","日立","三菱","東芝","シャープ","AQUA（アクア）"];
+const FR_MAKERS_NO  = ["ハイアール","ハイセンス","TCL","アイリスオーヤマ","ニトリ","無印良品","その他のメーカー"];
+const FR_SIZES = [
+  {k:"s", l:"170L以下（1〜2人用）",  buy:()=>buy70(3000),  appl:"frS"},
+  {k:"m", l:"171〜400L（3〜4人用）", buy:()=>buy70(10000), appl:"frL"},
+  {k:"l", l:"401L以上（大型）",       buy:()=>buy70(20000), appl:"frL"}
+];
 const DEF = {
   /* 料金はすべて税込 */
   truck:{q1:12000, q2:20000, q3:28000, full:33000},
@@ -170,10 +186,6 @@ const DEF = {
   staff:8000, tax:true,
   iron:10,   /* 鉄くず 1kgあたりの買取額 */
   buyList:[
-    /* 冷蔵庫の買取：製造3年落ちの買取相場（低め）× 70%（市場価格の30%引き）、100円単位 */
-    {id:11, name:"冷蔵庫 170L以下・1〜2人用（製造3年以内・動作品）", price:buy70(3000)},
-    {id:12, name:"冷蔵庫 171〜400L・3〜4人用（製造3年以内・動作品）", price:buy70(10000)},
-    {id:13, name:"冷蔵庫 401L以上・大型（製造3年以内・動作品）", price:buy70(20000)},
     {id:2, name:"洗濯機（製造5年以内・動作品）", price:2000},
     {id:3, name:"電動工具（動作品・1点）", price:300},
     {id:4, name:"草刈機・チェーンソー（動作品）", price:1000},
@@ -196,7 +208,7 @@ const CHECKS = [["new","製造5年以内"],["works","動作OK"],["clean","目立
 
 const P = JSON.parse(JSON.stringify(DEF));  /* 単価は社長のみ変更（このファイルを書き換える） */
 
-function newJob(){ return {qty:null, iron:0, appl:{}, hard:{}, cond:{}, staff:0, special:[], buy:{}, cands:[]}; }
+function newJob(){ return {fr:[], frSel:{maker:"", size:"", ok:false}, qty:null, iron:0, appl:{}, hard:{}, cond:{}, staff:0, special:[], buy:{}, cands:[]}; }
 let job = newJob(), step = 1, seq = 100;
 
 /* ---------- calculation ---------- */
@@ -213,7 +225,9 @@ function qtyText(q){
 function qtyShort(q){ return {1:"1/4",2:"半分",3:"3/4",4:"1台",6:"1台半",8:"2台",10:"2台半",12:"3台"}[q]; }
 function calc(){
   const truck = qtyPrice(job.qty);
-  const appl = sum(APPL.map(([k])=>(job.appl[k]||0)*P.appl[k]));
+  const frDisp = sum(job.fr.filter(f=>!f.buy).map(f=>f.price));
+  const frBuy  = sum(job.fr.filter(f=>f.buy).map(f=>f.price));
+  const appl = sum(APPL.map(([k])=>(job.appl[k]||0)*P.appl[k])) + frDisp;
   const hard = sum(HARD.map(([k])=>(job.hard[k]||0)*P.hard[k]));
   const cond = sum(COND.map(([k])=>job.cond[k] ? P.cond[k] : 0));
   const staff = job.staff * P.staff;
@@ -222,9 +236,9 @@ function calc(){
   const service = sub;
   const buyFixed = sum(P.buyList.map(b=>(job.buy[b.id]||0)*b.price));
   const buyIron = Math.round((job.iron||0) * P.iron);
-  const buy = buyFixed + buyIron;
+  const buy = buyFixed + buyIron + frBuy;
   const pending = job.cands.filter(c=>candOk(c)).length;
-  return {truck, appl, hard, cond, staff, sub, tax, service, buyFixed, buyIron, buy, pay:service-buy, pending};
+  return {truck, appl, hard, cond, staff, sub, tax, service, buyFixed, buyIron, frBuy, buy, pay:service-buy, pending};
 }
 function loadText(){ return qtyText(job.qty); }
 function candOk(c){ return c.cat==="ブランド品・貴金属" || c.cat==="骨董・美術品・着物" || (c.checks.works && (c.cat!=="家電" || c.checks.new)); }
@@ -285,7 +299,8 @@ function render(){
     h += `<h2>2. 追加料金がかかる物・条件</h2>
       <h3>家電リサイクル4品目（リサイクル料金＋運搬手数料）</h3>
       <p class="hint">型数・容量は本体のシールで確認します。買い取る物はここで数えず、次の「買取」で入れてください。</p>
-      <div class="box">${APPL.map(([k,l])=>ctr("appl",k,l,P.appl[k])).join("")}</div>
+      <div class="box">${APPL.filter(([k])=>!k.startsWith("fr")).map(([k,l])=>ctr("appl",k,l,P.appl[k])).join("")}</div>
+      <p class="hint">冷蔵庫・冷凍庫はここでは数えません。次の「買取」でメーカーと容量を選ぶと、買取か処分かが自動で決まります。</p>
       <h3>処分しにくい物</h3>
       <div class="box">${HARD.map(([k,l])=>ctr("hard",k,l,P.hard[k])).join("")}</div>
       <h3>作業の条件</h3>
@@ -296,7 +311,32 @@ function render(){
       <div class="chips">${SPECIAL.map(s=>`<button type="button" class="chip" data-act="special" data-v="${s}" aria-pressed="${job.special.includes(s)}">${s}</button>`).join("")}</div>
       ${job.special.length?`<div class="warnbox">${job.special.join("・")} は別途お見積りです。写真を撮って社長に送ってください。</div>`:""}`;
   }else if(step===3){
+    const fs = job.frSel, sz = FR_SIZES.find(x=>x.k===fs.size);
+    const canBuy = fs.maker && FR_MAKERS_BUY.includes(fs.maker) && fs.ok;
+    const frPrice = sz ? (canBuy ? sz.buy() : P.appl[sz.appl]) : 0;
+    let verdict = "";
+    if(fs.maker && sz){
+      verdict = canBuy
+        ? `<div class="frres ok num">買取 ${yen(frPrice)}</div><button type="button" class="btn main" data-act="fradd">買取として追加</button>`
+        : `<div class="frres no num">買取できません → 処分 ${yen(frPrice)}<small>${FR_MAKERS_BUY.includes(fs.maker) ? "製造3年以内・動作OKでないため" : "買取しないメーカーのため"}</small></div><button type="button" class="btn" data-act="fradd">処分として追加</button>`;
+    }
     h += `<h2>3. 買い取れる物はある？</h2>
+      <h3>冷蔵庫・冷凍庫（買取か処分かを自動で判定）</h3>
+      <div class="box">
+        <label class="sel"><span>メーカー</span><select id="fr-maker" data-act="frmaker">
+          <option value="">選んでください</option>
+          <optgroup label="買取するメーカー">${FR_MAKERS_BUY.map(m=>`<option ${m===fs.maker?"selected":""}>${m}</option>`).join("")}</optgroup>
+          <optgroup label="買取しないメーカー（処分）">${FR_MAKERS_NO.map(m=>`<option ${m===fs.maker?"selected":""}>${m}</option>`).join("")}</optgroup>
+        </select></label>
+        <label class="sel"><span>容量</span><select id="fr-size" data-act="frsize">
+          <option value="">選んでください（本体のシールで確認）</option>
+          ${FR_SIZES.map(x=>`<option value="${x.k}" ${x.k===fs.size?"selected":""}>${x.l}</option>`).join("")}
+        </select></label>
+        ${FR_MAKERS_BUY.includes(fs.maker) ? `<label class="chk"><input type="checkbox" id="fr-ok" data-act="frok" ${fs.ok?"checked":""}><span>製造3年以内で、動作OK（シールの製造年を確認）</span></label>` : ""}
+        ${verdict}
+      </div>
+      ${job.fr.length ? `<div class="box">${job.fr.map((f,i)=>`<div class="ctr"><div class="l">${f.maker}・${f.sizeL}<small>${f.buy?"買取":"処分"}</small></div>
+        <div class="c"><b class="num">${f.buy?"−":""}${yen(f.price)}</b><button type="button" data-act="frdel" data-i="${i}" aria-label="削除">✕</button></div></div>`).join("")}</div>` : ""}
       <h3>決まった金額で買い取る物</h3>
       <p class="hint">この表にある物だけ、その場で金額を出せます。条件に合うか、しっかり確認してください。</p>
       <div class="box">${P.buyList.length ? P.buyList.map(b=>ctr("buy",b.id,b.name,b.price)).join("") : `<p class="hint">登録された品目はありません。</p>`}</div>
@@ -336,6 +376,7 @@ function render(){
         ${c.staff?`<tr><td>作業員追加（3人目以降）${job.staff}名</td><td>${yen(c.staff)}</td></tr>`:""}
         <tr><td><b>処分費用 合計（税込）</b></td><td><b>${yen(c.service)}</b></td></tr>
         <tr><td>　うち消費税（10%）</td><td>${yen(c.tax)}</td></tr>
+        ${c.frBuy?`<tr class="minus"><td>冷蔵庫の買取 ${job.fr.filter(f=>f.buy).length}台</td><td>−${yen(c.frBuy)}</td></tr>`:""}
         ${c.buyFixed?`<tr class="minus"><td>買取（決まった品目）</td><td>−${yen(c.buyFixed)}</td></tr>`:""}
         ${c.buyIron?`<tr class="minus"><td>鉄くず ${job.iron}kg × ${P.iron}円</td><td>−${yen(c.buyIron)}</td></tr>`:""}
         <tr class="tot"><td>${c.pay>=0?"お支払い金額":"お客様へお支払いする金額"}</td><td>${yen(Math.abs(c.pay))}</td></tr>
@@ -369,7 +410,7 @@ function showCustomer(){
     <table class="bd">
       <tr><td>処分する量</td><td>${loadText()}</td></tr>
       <tr><td>処分費用${P.tax?"（税込）":""}</td><td>${yen(c.service)}</td></tr>
-      ${c.buyFixed?`<tr class="minus"><td>買取金額（差し引き）</td><td>−${yen(c.buyFixed)}</td></tr>`:""}
+      ${c.buyFixed+c.frBuy?`<tr class="minus"><td>買取金額（差し引き）</td><td>−${yen(c.buyFixed+c.frBuy)}</td></tr>`:""}
       ${c.buyIron?`<tr class="minus"><td>鉄くず買取 ${job.iron}kg（差し引き）</td><td>−${yen(c.buyIron)}</td></tr>`:""}
     </table>
     <div class="price"><div>${c.pay>=0?"お支払い金額":"お客様へお支払いする金額"}</div><div class="v">${yen(Math.abs(c.pay))}</div></div>
@@ -397,6 +438,13 @@ document.addEventListener("click", async e => {
   }
   else if(a==="special"){ const v=t.dataset.v; job.special = job.special.includes(v) ? job.special.filter(x=>x!==v) : [...job.special, v]; render(); }
   else if(a==="step"){ const n=+t.dataset.to; if(n>=2 && job.qty===null) step=1; else step=n; render(); window.scrollTo(0,0); }
+  else if(a==="fradd"){
+    const fs = job.frSel, sz = FR_SIZES.find(x=>x.k===fs.size);
+    const buy = FR_MAKERS_BUY.includes(fs.maker) && fs.ok;
+    job.fr.push({maker:fs.maker, sizeL:sz.l, buy, price: buy ? sz.buy() : P.appl[sz.appl]});
+    job.frSel = {maker:"", size:"", ok:false}; render();
+  }
+  else if(a==="frdel"){ job.fr.splice(+t.dataset.i, 1); render(); }
   else if(a==="photo"){ $("#cam").click(); }
   else if(a==="delc"){ const c = job.cands.find(x=>x.id===+t.dataset.id); if(c) URL.revokeObjectURL(c.url); job.cands = job.cands.filter(x=>x.id!==+t.dataset.id); render(); }
   else if(a==="chk"){ const c = job.cands.find(x=>x.id===+t.dataset.id); c.checks[t.dataset.k] = !c.checks[t.dataset.k]; render(); }
@@ -409,7 +457,10 @@ document.addEventListener("click", async e => {
 });
 document.addEventListener("change", e => {
   const t = e.target, a = t.dataset && t.dataset.act; if(!a) return;
-  if(a==="cond"){ job.cond[t.dataset.k] = t.checked; renderSummary(); }
+  if(a==="frmaker"){ job.frSel.maker = t.value; job.frSel.ok = false; render(); }
+  else if(a==="frsize"){ job.frSel.size = t.value; render(); }
+  else if(a==="frok"){ job.frSel.ok = t.checked; render(); }
+  else if(a==="cond"){ job.cond[t.dataset.k] = t.checked; renderSummary(); }
   else if(a==="cat"){ job.cands.find(x=>x.id===+t.dataset.id).cat = t.value; render(); }
 });
 document.addEventListener("input", e => {
