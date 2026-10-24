@@ -207,6 +207,7 @@ table.t tr.sum td{font-weight:700;border-top:2px solid var(--fg)}
 
 <main id="v-saved" hidden>
   <div class="panel" id="savedList"></div>
+  <div class="panel" id="sheetPanel"></div>
   <div class="panel">
     <h3 style="margin:0 0 6px;font-size:16px">端末間でデータを移す</h3>
     <p class="help" style="font-size:13px">データはこの端末の中だけに保存されます。別のスマホ・iPadへ移すときは「書き出し」したファイルを送って、相手の端末で「読み込み」してください。</p>
@@ -836,11 +837,107 @@ function showTab(t){
   document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
   ['calc','comps','saved'].forEach(v=>$('#v-'+v).hidden=v!==t);
   $('#band').hidden=t!=='calc';
-  if(t==='comps') renderComps();
+  if(t==='comps'){ renderComps(); syncComps().then(ok=>{ if(ok && !$('#v-comps').hidden) renderComps(); }); }
   if(t==='saved') renderSaved();
   if(t==='calc') full();
   scrollTo(0,0);
 }
+
+/* ---------- スプレッドシート連携 ---------- */
+let SHEET = LS.get('sheet',{url:'',key:'',who:''});
+let QUEUE = LS.get('queue',[]);
+const sheetOn = ()=>!!(SHEET.url && SHEET.key);
+const TYPE_L = {sale:'売買(万円)', rent:'家賃(円/月)', mp:'民泊(円/泊)'};
+function enqueue(item){ QUEUE.push(item); LS.set('queue',QUEUE); }
+let flushing=null;
+function flush(){
+  if(!sheetOn()) return Promise.resolve(false);
+  if(!QUEUE.length) return Promise.resolve(true);
+  if(flushing) return flushing;
+  const items=[...QUEUE];
+  flushing = fetch(SHEET.url,{method:'POST',body:JSON.stringify({key:SHEET.key,items})})
+    .then(r=>r.json()).then(j=>{ if(!j.ok) throw new Error(j.error||'error'); QUEUE=QUEUE.slice(items.length); LS.set('queue',QUEUE); return true; })
+    .catch(e=>{ console.warn('sheet send',e); return false; })
+    .finally(()=>{ flushing=null; });
+  return flushing;
+}
+function sheetToComp(x){
+  const t=String(x.type||''); const type=t.startsWith('売買')?'sale':t.startsWith('家賃')?'rent':t.startsWith('民泊')?'mp':null;
+  const sr=String(x.src||''); const src=sr.includes('自社')?'own':sr.includes('国交')?'mlit':sr.includes('掲載')?'ad':'hear';
+  const n=v=>v===''||v==null?'':num(v);
+  return {id:x.id, at:x.at, who:x.who, type, area:String(x.area||'').trim(), src, amount:num(x.amount), occ:n(x.occ), land:n(x.land), floor:n(x.floor), age:n(x.age), year:x.year, memo:x.memo, fromSheet:true};
+}
+async function pullComps(){
+  if(!sheetOn()) return false;
+  try{
+    const r=await fetch(SHEET.url+(SHEET.url.includes('?')?'&':'?')+'key='+encodeURIComponent(SHEET.key));
+    const j=await r.json(); if(!j.ok) throw new Error(j.error||'error');
+    const pend=new Set(QUEUE.filter(q=>q.kind==='comp').map(q=>q.id));
+    const del=new Set(QUEUE.filter(q=>q.kind==='compDel').map(q=>q.id));
+    const fromSheet=(j.comps||[]).map(sheetToComp).filter(c=>c.type && c.amount>0 && !del.has(c.id));
+    const ids=new Set(fromSheet.map(c=>c.id));
+    COMPS=[...fromSheet, ...COMPS.filter(c=>pend.has(c.id)&&!ids.has(c.id))];
+    LS.set('comps',COMPS); return true;
+  }catch(e){ console.warn('sheet pull',e); return false; }
+}
+async function syncComps(){ await flush(); return pullComps(); }
+function compItem(c){
+  return {kind:'comp', id:c.id, row:[SHEET.who||'', TYPE_L[c.type], c.area, SRC[c.src]||'', c.amount, c.occ, c.land, c.floor, c.age, c.year, c.memo, c.id]};
+}
+function caseRow(rec){
+  const buy=S.mode==='buy', c=costBase(), cc=costConfidence();
+  const r1=x=>x==null?'回収不可':Math.round(x*10)/10;
+  const m1=x=>x==null||!isFinite(x)?'':Math.round(x/1e3)/10;
+  const cols=m=>{
+    if(!S.use[m]) return Array(9).fill('');
+    const a=analyze(m);
+    const lim = buy ? (a.maxPrice==null?'0円でも不可':m1(a.maxPrice)) : (a.rentTarget==null||a.rentTarget<1?'借りても不可':Math.floor(a.rentTarget/100)*100);
+    const exit = m==='mp' ? (a.exitOcc==null?'100%でも赤字':Math.round(a.exitOcc*10)/10) : (a.exitRent==null?'':Math.ceil(a.exitRent/100)*100);
+    return [a.judge.j, r1(a.std.payback), r1(a.pes.payback), r1(a.opt.payback), m1(a.std.total), m1(a.std.steady.rev), m1(a.std.steady.cf), lim, exit];
+  };
+  const data={...S}; delete data._openTax;
+  return [SHEET.who||'', S.name, S.area, buy?'購入':'借りる', ({wood:'木造',lgs:'軽量鉄骨',rc:'RC'})[S.struct], num(S.land), num(S.floor), num(S.age),
+    buy?num(S.price):'', (!buy&&S.lease.offer!==''&&S.lease.offer!=null)?num(S.lease.offer):'', buy?'':num(S.lease.years),
+    m1(c.rep+c.kaitai+c.fuy+c.kus+c.res), cc.t, ...cols('mp'), ...cols('ch'), rec.id, JSON.stringify(data)];
+}
+function askWho(){
+  if(SHEET.who) return;
+  const w=prompt('登録者の名前を入れてください（スプレッドシートに残ります）');
+  if(w){ SHEET.who=w.trim(); LS.set('sheet',SHEET); }
+}
+async function shareLink(url,title,okMsg){
+  try{ if(navigator.share){ await navigator.share({title,url}); return; } }catch(e){ if(e.name==='AbortError') return; }
+  try{ await navigator.clipboard.writeText(url); toast(okMsg); }
+  catch(e){ prompt('このリンクをコピーしてください',url); }
+}
+function renderSheetPanel(){
+  $('#sheetPanel').innerHTML=`<h3 style="margin:0 0 6px;font-size:16px">スプレッドシート連携</h3>
+    <p class="help" style="font-size:13px;margin:0 0 8px">設定すると「この物件を保存」と事例の登録が、スプレッドシートに1行ずつ積み重なります。事例データはシートから読み込むので、全員で同じ相場データを使えます。電波がないときは端末に貯めて、次に開いたときにまとめて送ります。</p>
+    <div class="grid">
+      <label class="f full"><span class="l">記録先URL</span><span class="in"><input type="text" id="sUrl" value="${esc(SHEET.url)}" placeholder="https://script.google.com/macros/s/…/exec"></span></label>
+      <label class="f"><span class="l">合言葉</span><span class="in"><input type="text" id="sKey" value="${esc(SHEET.key)}" autocomplete="off"></span></label>
+      <label class="f"><span class="l">登録者の名前</span><span class="in"><input type="text" id="sWho" value="${esc(SHEET.who)}"></span></label>
+    </div>
+    <p class="help" style="font-size:13px">${sheetOn()?`接続設定あり${QUEUE.length?`・<b style="color:var(--no)">未送信 ${QUEUE.length}件</b>`:'・未送信なし'}`:'未設定（この端末だけに保存しています）'}</p>
+    <div class="btns"><button class="btn p" id="sSave">保存して接続テスト</button>${sheetOn()?'<button class="btn" id="sLink">スタッフ用の設定リンク</button>':''}${QUEUE.length&&sheetOn()?'<button class="btn" id="sRetry">未送信を今送る</button>':''}</div>`;
+}
+$('#sheetPanel').addEventListener('click',async e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.id==='sSave'){
+    SHEET={url:$('#sUrl').value.trim(), key:$('#sKey').value.trim(), who:$('#sWho').value.trim()};
+    LS.set('sheet',SHEET);
+    if(!sheetOn()){ renderSheetPanel(); toast('連携を解除しました（この端末のみ保存）'); return; }
+    COMPS.filter(c=>!c.fromSheet && String(c.id).startsWith('k')).forEach(c=>enqueue(compItem(c)));   // 今までの事例も送る
+    b.disabled=true; b.textContent='接続中…';
+    const ok=await syncComps();
+    renderSheetPanel(); toast(ok?'スプレッドシートにつながりました':'つながりません。URLと合言葉を確認してください');
+  }
+  if(b.id==='sRetry'){ const ok=await flush(); renderSheetPanel(); toast(ok?'送信しました':'まだ送れません（電波・設定を確認）'); }
+  if(b.id==='sLink'){
+    const url=location.origin+location.pathname+'#setup='+b64e(JSON.stringify({url:SHEET.url,key:SHEET.key}));
+    shareLink(url,'事業性判定の設定','設定リンクをコピーしました。スタッフに送って開いてもらえば連携されます');
+  }
+});
 
 /* ---------- 保存・共有 ---------- */
 function b64e(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
@@ -853,7 +950,11 @@ function saveCase(){
   if(!name){ name=prompt('物件名を入れてください'); if(!name) return; S.name=name; }
   const rec={id:currentId||('c'+Date.now()), name, at:new Date().toISOString(), mode:S.mode, summary:summaryOf(), S:JSON.parse(JSON.stringify(S))};
   const i=CASES.findIndex(c=>c.id===rec.id); if(i>=0) CASES[i]=rec; else CASES.unshift(rec);
-  currentId=rec.id; LS.set('cases',CASES); full(); toast('保存しました');
+  currentId=rec.id; LS.set('cases',CASES);
+  if(sheetOn()){
+    askWho(); enqueue({kind:'case', id:rec.id, row:caseRow(rec)}); full();
+    flush().then(ok=>toast(ok?'保存し、スプレッドシートに記録しました':'端末に保存しました。シートへは電波が戻ったら送ります'));
+  }else{ full(); toast('保存しました（この端末のみ）'); }
 }
 async function shareCase(){
   const data={...S}; delete data._openTax;
@@ -864,6 +965,7 @@ async function shareCase(){
   catch(e){ prompt('このリンクをコピーしてください',url); }
 }
 function renderSaved(){
+  renderSheetPanel();
   const el=$('#savedList');
   if(!CASES.length){ el.innerHTML=`<h3 style="margin:0 0 6px;font-size:16px">保存した物件</h3><div class="empty">まだありません。判定画面の下の「この物件を保存」で保存できます。</div>`; return; }
   el.innerHTML=`<h3 style="margin:0 0 6px;font-size:16px">保存した物件（${CASES.length}件）</h3>`+CASES.map(c=>`<div class="rec"><div class="rt"><b>${esc(c.name)}</b><small>${c.mode==='buy'?'購入':'借りる'}・${esc(c.summary)}・${new Date(c.at).toLocaleDateString('ja-JP')}</small></div>
@@ -909,10 +1011,12 @@ $('#v-comps').addEventListener('click',e=>{
   if(t.id==='addComp'){
     if(!(num(CF.amount)>0)){ toast('金額を入れてください'); return; }
     if(!CF.area) CF.area=S.area;
-    COMPS.push({id:'k'+Date.now(), at:new Date().toISOString(), type:CF.type, area:CF.area.trim(), land:CF.land===''?'':num(CF.land), floor:CF.floor===''?'':num(CF.floor), age:CF.age===''?'':num(CF.age), amount:num(CF.amount), occ:CF.occ===''?'':num(CF.occ), src:CF.src, year:CF.year, memo:CF.memo});
-    LS.set('comps',COMPS); Object.assign(CF,{land:'',floor:'',age:'',amount:'',occ:'',memo:''}); renderComps(); toast('登録しました');
+    const nc={id:'k'+Date.now(), at:new Date().toISOString(), type:CF.type, area:CF.area.trim(), land:CF.land===''?'':num(CF.land), floor:CF.floor===''?'':num(CF.floor), age:CF.age===''?'':num(CF.age), amount:num(CF.amount), occ:CF.occ===''?'':num(CF.occ), src:CF.src, year:CF.year, memo:CF.memo}; COMPS.push(nc);
+    LS.set('comps',COMPS); Object.assign(CF,{land:'',floor:'',age:'',amount:'',occ:'',memo:''}); renderComps();
+    if(sheetOn()){ askWho(); enqueue(compItem(nc)); flush().then(ok=>toast(ok?'登録し、シートにも記録しました':'登録しました（シートへは後で送ります）')); }
+    else toast('登録しました');
   }
-  if(t.dataset.cdel){ if(confirm('この事例を削除しますか？')){ COMPS=COMPS.filter(c=>c.id!==t.dataset.cdel); LS.set('comps',COMPS); renderComps(); } }
+  if(t.dataset.cdel){ if(confirm('この事例を削除しますか？')){ const id=t.dataset.cdel; COMPS=COMPS.filter(c=>c.id!==id); LS.set('comps',COMPS); renderComps(); if(sheetOn()){ enqueue({kind:'compDel',id}); flush(); } } }
 });
 
 /* ---------- 書き出し・読み込み ---------- */
@@ -938,6 +1042,12 @@ $('#importFile').onchange=async e=>{
 
 /* ---------- 起動 ---------- */
 (function init(){
+  const st=location.hash.match(/#setup=([^&]+)/);
+  if(st){
+    try{ const o=JSON.parse(b64d(st[1])); SHEET={...SHEET,url:o.url,key:o.key}; LS.set('sheet',SHEET); history.replaceState(null,'',location.pathname);
+      setTimeout(()=>{ showTab('saved'); toast('スプレッドシート連携を設定しました。名前を入れて「保存して接続テスト」を押してください'); },200); }
+    catch(e){ toast('設定リンクが壊れています'); }
+  }
   const m=location.hash.match(/#d=([^&]+)/);
   if(m){
     try{ S=merge(defaultState(),JSON.parse(b64d(m[1]))); currentId=null; history.replaceState(null,'',location.pathname); toast('共有された物件を開きました'); }
@@ -947,6 +1057,7 @@ $('#importFile').onchange=async e=>{
     if(d&&d.S){ S=merge(defaultState(),d.S); currentId=d.currentId||null; }
   }
   full();
+  if(sheetOn()) syncComps().then(ok=>{ if(ok && !$('#v-calc').hidden) recalc(); });
 })();
 </script>
 </body>
