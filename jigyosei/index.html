@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#24461f">
+<title>物件の事業性判定</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap">
+<style>
+/* 社内用。現場ツールと同じ配色。1列（最大680px）で上から順に入力し、下の帯に判定が常に出る。 */
+:root{
+  --bg:#eef1ea; --panel:#ffffff; --fg:#1b2318; --muted:#5a6655; --line:#d3dacd;
+  --accent:#24461f; --accent-fg:#ffffff; --soft:#e3eadd; --pick:#ffd400; --pick-bg:#fff8cc;
+  --band:#24461f; --band-fg:#ffffff; --band-num:#ffe14d;
+  --go:#1d7a37; --go-bg:#e0f2e4; --mid:#9a5d00; --mid-bg:#fff0d2; --no:#b4232f; --no-bg:#fde8ea;
+  --c-mp:#2f6fb0; --c-ch:#c2571a;
+  --font:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121610; --panel:#1b2119; --fg:#e8eee3; --muted:#9aa693; --line:#323b2e;
+  --accent:#7fbf6a; --accent-fg:#0f160d; --soft:#253021; --pick-bg:#3a3510;
+  --band:#0d140b; --band-fg:#e8eee3;
+  --go:#6fd38a; --go-bg:#16301d; --mid:#f0b54a; --mid-bg:#352a12; --no:#ff7c86; --no-bg:#3a1a1d;
+  --c-mp:#6aa8ec; --c-ch:#f08a4b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121610; --panel:#1b2119; --fg:#e8eee3; --muted:#9aa693; --line:#323b2e;
+  --accent:#7fbf6a; --accent-fg:#0f160d; --soft:#253021; --pick-bg:#3a3510;
+  --band:#0d140b; --band-fg:#e8eee3;
+  --go:#6fd38a; --go-bg:#16301d; --mid:#f0b54a; --mid-bg:#352a12; --no:#ff7c86; --no-bg:#3a1a1d;
+  --c-mp:#6aa8ec; --c-ch:#f08a4b; color-scheme:dark}
+
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--pick);outline-offset:2px}
+.num,input{font-variant-numeric:tabular-nums}
+a{color:var(--accent)}
+
+header.top{position:sticky;top:0;z-index:15;background:var(--band);color:var(--band-fg);padding:calc(6px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+header.top .in{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap}
+header.top .home{color:var(--band-fg);opacity:.8;font-weight:700;text-decoration:none;min-height:40px;line-height:40px}
+header.top h1{font-size:17px;margin:0;flex:1}
+.tabs{display:flex;gap:2px;width:100%}
+.tabs button{flex:1;height:42px;padding:0 6px;border:0;background:none;color:var(--band-fg);opacity:.7;font-weight:700;border-bottom:3px solid transparent}
+.tabs button[aria-selected="true"]{opacity:1;border-bottom-color:var(--band-num)}
+
+main{max-width:680px;margin:0 auto;padding-block:12px 130px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.internal{background:var(--no-bg);color:var(--no);border-radius:10px;padding:8px 12px;font-weight:700;font-size:13px;margin-bottom:12px}
+
+.step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.step>h2{display:flex;align-items:center;gap:10px;font-size:17px;margin:0 0 10px}
+.step>h2 .no{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font-size:15px;flex:none}
+.step>h2 .sub{margin-left:auto;font-size:13px;color:var(--muted);font-weight:400}
+details.step>summary{list-style:none;cursor:pointer}
+details.step>summary::-webkit-details-marker{display:none}
+details.step>summary h2{display:flex;align-items:center;gap:10px;font-size:17px;margin:0}
+details.step>summary h2 .no{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font-size:15px}
+details.step>summary h2::after{content:"開く ▾";margin-left:auto;font-size:13px;color:var(--muted);font-weight:400}
+details.step[open]>summary h2::after{content:"閉じる ▴"}
+details.step[open]>summary{margin-bottom:10px}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:340px){.grid{grid-template-columns:1fr}}
+.grid .full{grid-column:1/-1}
+label.f{display:block}
+label.f .l{display:block;font-size:13px;color:var(--muted);font-weight:700;margin-bottom:3px}
+label.f .in{display:flex;align-items:center;gap:6px}
+label.f input,label.f select,.txt{width:100%;min-width:0;height:44px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);padding:0 10px;font-size:17px}
+label.f input{text-align:right}
+label.f input[type=text],.txt{text-align:left}
+label.f .in i{font-style:normal;color:var(--muted);font-size:13px;white-space:nowrap}
+label.f small,.help{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+.seg{display:flex;border:1.5px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg)}
+.seg button{flex:1;min-height:46px;border:0;background:none;font-weight:700;padding:4px 6px;line-height:1.25}
+.seg button+button{border-left:1.5px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+.seg small{display:block;font-weight:400;font-size:11px;opacity:.85}
+.chk{display:flex;align-items:center;gap:10px;min-height:44px;font-weight:700}
+.chk input{width:22px;height:22px;accent-color:var(--accent)}
+
+.est{margin-top:6px;padding:8px 10px;border-radius:10px;background:var(--soft);font-size:13px}
+.est b{font-size:15px}
+.est button{margin-left:6px;border:1px solid var(--accent);background:var(--panel);color:var(--accent);border-radius:8px;padding:2px 10px;font-weight:700;min-height:32px}
+.conf{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:4px;vertical-align:1px}
+.conf.c0,.conf.c1{background:var(--no-bg);color:var(--no)}
+.conf.c2{background:var(--mid-bg);color:var(--mid)}
+.conf.c3{background:var(--go-bg);color:var(--go)}
+
+.grp{font-size:14px;font-weight:700;margin:14px 0 4px;padding-top:10px;border-top:1px dashed var(--line);display:flex;gap:8px}
+.grp:first-child{margin-top:0;padding-top:0;border-top:0}
+.grp span{margin-left:auto;color:var(--muted);font-weight:400}
+.item{padding:8px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.item .h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.item .n{font-weight:700;min-width:5.5em}
+.chips{display:flex;gap:4px;margin-left:auto}
+.chips button{min-width:46px;height:38px;border:1.5px solid var(--line);border-radius:9px;background:var(--bg);font-weight:700;font-size:14px}
+.chips button[aria-pressed="true"]{background:var(--pick);border-color:#c9a800;color:#1b2318}
+.item .amt{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:13px;color:var(--muted)}
+.item .amt input{width:96px;height:38px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);text-align:right;padding:0 8px;font-size:16px}
+.item .amt input.q{border-color:var(--go);background:var(--go-bg)}
+.item .amt .tag{font-size:11px;font-weight:700;padding:1px 6px;border-radius:99px;background:var(--soft)}
+.item .amt .tag.q{background:var(--go-bg);color:var(--go)}
+.item .amt button{border:0;background:none;color:var(--accent);text-decoration:underline;font-size:12px;padding:4px}
+.total{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--pick-bg);font-weight:700}
+.total b{font-size:20px}
+
+.usecard{border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-top:10px}
+.usecard.off{opacity:.55}
+.usecard .uh{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.usecard .uh b{font-size:16px}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+
+/* results */
+#res h3{font-size:16px;margin:16px 0 8px}
+.verdict{border-radius:14px;padding:14px;margin-bottom:12px;border:2px solid transparent}
+.verdict.go{background:var(--go-bg);border-color:var(--go)}
+.verdict.mid{background:var(--mid-bg);border-color:var(--mid)}
+.verdict.no{background:var(--no-bg);border-color:var(--no)}
+.verdict .vt{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.verdict .vt .m{font-weight:700;font-size:15px}
+.verdict .vt .j{font-size:22px;font-weight:700}
+.verdict.go .j{color:var(--go)} .verdict.mid .j{color:var(--mid)} .verdict.no .j{color:var(--no)}
+.verdict .why{font-size:14px;margin:4px 0 8px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.kpi{background:var(--panel);border-radius:10px;padding:8px}
+.kpi .k{font-size:11px;color:var(--muted);font-weight:700}
+.kpi .v{font-size:18px;font-weight:700;line-height:1.2}
+.kpi .v small{font-size:12px;font-weight:400}
+.key{margin-top:8px;background:var(--panel);border-radius:10px;padding:10px;font-size:14px}
+.key .row{display:flex;justify-content:space-between;gap:8px;padding:3px 0}
+.key .row b{font-size:16px;text-align:right}
+table.t{width:100%;border-collapse:collapse;font-size:14px;margin-top:6px}
+table.t th,table.t td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:right}
+table.t th:first-child,table.t td:first-child{text-align:left}
+table.t thead th{font-size:12px;color:var(--muted)}
+table.t tr.sum td{font-weight:700;border-top:2px solid var(--fg)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.chart svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:4px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:18px;height:3px}
+.notes{font-size:12px;color:var(--muted);padding-left:18px;margin:6px 0 0}
+.notes li{margin:2px 0}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{min-height:46px;padding:0 16px;border-radius:12px;border:1.5px solid var(--accent);background:var(--panel);color:var(--accent);font-weight:700}
+.btn.p{background:var(--accent);color:var(--accent-fg)}
+.btn.d{border-color:var(--no);color:var(--no)}
+.btn.s{min-height:36px;padding:0 10px;font-size:13px;border-radius:9px}
+
+/* list views */
+.rec{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.rec .rt{flex:1;min-width:180px}
+.rec .rt b{display:block}
+.rec .rt small{color:var(--muted)}
+.empty{color:var(--muted);text-align:center;padding:20px 0}
+
+/* bottom band */
+.band{position:fixed;left:0;right:0;bottom:0;z-index:14;background:var(--band);color:var(--band-fg);padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));cursor:pointer}
+.band .in{max-width:680px;margin:0 auto;display:flex;gap:10px;align-items:center}
+.band .bv{flex:1;display:grid;gap:2px}
+.band .bl{display:flex;gap:8px;align-items:baseline;font-size:14px}
+.band .bl b{color:var(--band-num);font-size:18px}
+.band .pill{font-size:12px;font-weight:700;padding:1px 8px;border-radius:99px;background:#fff;color:#1b2318}
+.band .pill.go{background:#8fe3a4}.band .pill.mid{background:#ffd27a}.band .pill.no{background:#ff9aa2}
+.band .go2{font-weight:700;white-space:nowrap;opacity:.9}
+.toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:700;z-index:30;max-width:90vw}
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="home" href="../">← 現場見積</a>
+  <h1>物件の事業性判定</h1>
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="calc" aria-selected="true">判定</button>
+    <button role="tab" data-tab="comps" aria-selected="false">事例データ</button>
+    <button role="tab" data-tab="saved" aria-selected="false">保存一覧</button>
+  </div>
+</div></header>
+
+<main id="v-calc">
+  <div class="internal">社内判断用です。お客様には見せないでください。</div>
+  <div id="form"></div>
+  <section id="res"></section>
+</main>
+
+<main id="v-comps" hidden>
+  <div class="internal">事例は田舎ほど少ないので、成約・査定・聞き取りを少しずつ貯めるほど判定の確度が上がります。</div>
+  <div class="panel" id="compForm"></div>
+  <div class="panel" id="compList"></div>
+  <div class="panel">
+    <h3 style="margin:0 0 6px;font-size:16px">事例の探し方</h3>
+    <ul class="notes" style="font-size:13px">
+      <li><a href="https://www.reinfolib.mlit.go.jp/" target="_blank" rel="noopener">国土交通省 不動産情報ライブラリ</a>：中津川市の実際の取引価格（成約）が地区別に見られる。</li>
+      <li>自社の成約・査定・地元の人からの聞き取りは「自社」「聞き取り」で登録（重みが高い）。</li>
+      <li>ポータルの掲載価格は「掲載」で登録。売買は15%、家賃は5%割り引いて扱います。</li>
+    </ul>
+  </div>
+</main>
+
+<main id="v-saved" hidden>
+  <div class="panel" id="savedList"></div>
+  <div class="panel">
+    <h3 style="margin:0 0 6px;font-size:16px">端末間でデータを移す</h3>
+    <p class="help" style="font-size:13px">データはこの端末の中だけに保存されます。別のスマホ・iPadへ移すときは「書き出し」したファイルを送って、相手の端末で「読み込み」してください。</p>
+    <div class="btns" style="margin-top:8px">
+      <button class="btn" id="exportAll">すべて書き出し</button>
+      <button class="btn" id="importAll">読み込み</button>
+      <button class="btn" id="exportCsv">事例をCSVで書き出し</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+  </div>
+</main>
+
+<div class="band" id="band"><div class="in"><div class="bv" id="bandBody"></div><div class="go2">結果 ↓</div></div></div>
+
+<script>
+/* ===================================================================
+   既定値（仮の値）。単価の変更は社長がこのファイルを書き換える。
+   金額の単位：a = 万円（延床30坪の家を基準。area:1 は延床坪数で補正）
+   =================================================================== */
+const DEF = {
+  repairs:[
+    {id:'roof',   n:'屋根',           area:1, a:[15,70,200],  d:['部分補修・雨どい','塗装・板金','葺き替え・カバー工法']},
+    {id:'wall',   n:'外壁',           area:1, a:[10,110,250], d:['部分補修','塗装','張り替え']},
+    {id:'leak',   n:'雨漏り・傾き',   area:0, a:[10,60,200],  d:['小規模補修','下地・梁の補修','傾き修正・基礎']},
+    {id:'ari',    n:'シロアリ',       area:0, a:[15,40,120],  d:['予防・駆除','被害部の補修','土台・柱の交換']},
+    {id:'kitchen',n:'キッチン',       area:0, a:[10,70,120],  d:['水栓・部分交換','システムキッチン交換','位置変更込み']},
+    {id:'bath',   n:'浴室',           area:0, a:[10,100,160], d:['部分補修','ユニットバス交換','在来浴室→ユニットバス']},
+    {id:'toilet', n:'トイレ',         area:0, a:[15,35,60],   d:['便器交換','内装込み交換','和式→洋式']},
+    {id:'senmen', n:'洗面',           area:0, a:[5,20,35],    d:['水栓交換','洗面台交換','位置変更込み']},
+    {id:'kyuto',  n:'給湯器',         area:0, a:[12,25,45],   d:['修理','交換（ガス・石油）','エコキュート等']},
+    {id:'jouka',  n:'浄化槽・排水',   area:0, a:[5,30,130],   d:['清掃・点検','ブロワー等の修理','汲み取り→浄化槽新設']},
+    {id:'floor',  n:'床・畳',         area:1, a:[10,50,130],  d:['畳表替え・部分補修','フローリング重ね張り','床下からやり直し']},
+    {id:'naisou', n:'内装・建具',     area:1, a:[10,50,120],  d:['部分補修','クロス・襖・障子','全面改装']},
+    {id:'denki',  n:'電気・水道管',   area:0, a:[5,30,90],    d:['部分修理','分電盤・一部配線','全面引き直し']},
+    {id:'mado',   n:'窓・玄関・断熱', area:0, a:[5,40,120],   d:['部分修理','サッシ・玄関交換','断熱改修']},
+    {id:'gaikou', n:'外構・庭木',     area:0, a:[5,20,60],    d:['剪定・整地','ブロック塀・駐車場','外構やり直し']},
+    {id:'clean',  n:'ハウスクリーニング', area:1, a:[5,10,20], d:['簡易','通常','特殊清掃']}
+  ],
+  mpSetup:[
+    {id:'shobo', n:'消防設備',         area:0, a:[10,30,80],  d:['住宅用火災警報器で足りる','特定小規模用の自動火災報知','自火報工事・誘導灯']},
+    {id:'kagu',  n:'家具・家電・寝具', area:0, a:[40,100,200],d:['最低限','標準','こだわり']},
+    {id:'todoke',n:'届出・許可・図面', area:0, a:[10,25,50],  d:['住宅宿泊事業の届出','簡易宿所の許可','用途変更・図面作成']},
+    {id:'net',   n:'ネット・鍵',       area:0, a:[5,10,20],   d:['Wi-Fi','Wi-Fi・スマートロック','防犯カメラ込み']}
+  ]
+};
+const LV = ['なし','軽','中','大'];
+const LEGAL = {wood:22, lgs:27, rc:47};
+const LAWDAYS = {shin:180, kan:365};
+const AREAS = ['中心部','郊外','山間部'];
+const SRC = {own:'自社成約・査定', mlit:'国交省（成約）', hear:'聞き取り', ad:'掲載価格'};
+const SRCW = {own:1, mlit:1, hear:.8, ad:.6};
+const AD_ADJ = {sale:.85, rent:.95, mp:1};
+
+function defaultState(){ return {
+  name:'', area:'郊外', land:100, floor:35, age:45, struct:'wood',
+  mode:'buy',
+  price:300, evalLand:'', evalBldg:'', bldgRatio:20, direct:false, shihou:10,
+  lease:{years:10, offer:'', shiki:1, rei:1, chukai:1},
+  rep:{}, ms:{},
+  truck:0, truckUnit:33000, kaitaiTsubo:0, kaitaiUnit:4, futai:0, kusakari:0, reserve:15,
+  use:{mp:true, ch:true},
+  mp:{law:'shin', rate:18000, occ:50, stay:2, clean:6000, ota:15, daiko:0, util:15000, consum:800, ins:3, reserveRate:3},
+  ch:{rent:55000, occ:90, kanri:5, reserveRate:5, ins:2},
+  tx:{rate:30, kotei:1.4, toshi:0, tokurei:true, tourokuL:1.5, tourokuB:2, shutoku:3,
+      repLife:15, eqLife:6, decline:1, tgtMp:5, tgtCh:8,
+      pesInc:20, pesCost:30, optInc:10, optCost:5, offset:false}
+};}
+
+/* ---------- storage ---------- */
+const LS = {
+  get(k,d){ try{ const v=localStorage.getItem('jigyosei.'+k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem('jigyosei.'+k, JSON.stringify(v)); }catch(e){} }
+};
+function merge(base, add){
+  for(const k in add){
+    if(add[k] && typeof add[k]==='object' && !Array.isArray(add[k]) && base[k] && typeof base[k]==='object') merge(base[k], add[k]);
+    else base[k]=add[k];
+  }
+  return base;
+}
+let S = defaultState();
+let COMPS = LS.get('comps', []);
+let CASES = LS.get('cases', []);
+let currentId = null;
+
+/* ---------- helpers ---------- */
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v=>{ const n=Number(String(v).replace(/[,，]/g,'')); return isFinite(n)?n:0; };
+function getP(path){ return path.split('.').reduce((o,k)=>o==null?undefined:o[k], S); }
+function setP(path,v){ const ks=path.split('.'); let o=S; ks.slice(0,-1).forEach(k=>o=o[k]); o[ks.at(-1)]=v; }
+function man(yen){ // 円 → 「◯万円」
+  if(yen==null||!isFinite(yen)) return '—';
+  const m=yen/10000, a=Math.abs(m);
+  const s = a>=100 ? Math.round(m).toLocaleString() : (Math.round(m*10)/10).toLocaleString();
+  return s+'万円';
+}
+const yen = n=> n==null||!isFinite(n)?'—':Math.round(n).toLocaleString()+'円';
+const yrs = y=> y==null?'回収できない':(y<0.05?'すぐ':(Math.round(y*10)/10)+'年');
+const pct = p=> p==null?'—':(Math.round(p*10)/10)+'%';
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.append(t); setTimeout(()=>t.remove(),2200); }
+const sum = (arr,f=x=>x)=>arr.reduce((s,x)=>s+f(x),0);
+
+/* ===================================================================
+   計算
+   =================================================================== */
+function itemAmt(it, st){ // 円
+  if(!st||!st.lv) return 0;
+  if(st.q && st.amt!=null) return num(st.amt)*1e4;
+  const f = it.area ? Math.max(num(S.floor),1)/30 : 1;
+  return Math.max(1, Math.round(it.a[st.lv-1]*f))*1e4;
+}
+function costBase(){
+  const rep = sum(DEF.repairs, it=>itemAmt(it,S.rep[it.id]));
+  const ms  = sum(DEF.mpSetup, it=>itemAmt(it,S.ms[it.id]));
+  const kaitai = num(S.kaitaiTsubo)*num(S.kaitaiUnit)*1e4 + num(S.futai)*1e4;
+  const fuy = num(S.truck)*num(S.truckUnit);
+  const kus = num(S.kusakari)*1e4;
+  const res = (rep+kaitai+fuy)*num(S.reserve)/100;
+  return {rep, ms, kaitai, fuy, kus, res};
+}
+function evalVals(P){
+  const hasL=S.evalLand!=='' && S.evalLand!=null, hasB=S.evalBldg!=='' && S.evalBldg!=null;
+  if(hasL||hasB){
+    const eL=hasL?num(S.evalLand)*1e4:0, eB=hasB?num(S.evalBldg)*1e4:0;
+    return {eL, eB, share: eL+eB>0 ? eB/(eL+eB) : num(S.bldgRatio)/100, given:true};
+  }
+  const sh=num(S.bldgRatio)/100;
+  return {eL:P*(1-sh), eB:P*sh, share:sh, given:false};
+}
+function koteiTax(ev){
+  const L=num(S.land); const small = L>0 ? Math.min(L,60.5)/L : 1;
+  const lStd = S.tx.tokurei ? ev.eL*(small/6+(1-small)/3) : ev.eL;
+  const lTs  = S.tx.tokurei ? ev.eL*(small/3+(1-small)*2/3) : ev.eL;
+  const landOK = ev.eL>=300000, bOK = ev.eB>=200000;   // 免税点
+  const base = (landOK?lStd:0)+(bOK?ev.eB:0);
+  const baseT= (landOK?lTs:0)+(bOK?ev.eB:0);
+  return base*num(S.tx.kotei)/100 + baseT*num(S.tx.toshi)/100;
+}
+function usedLife(){ // 中古資産の簡便法
+  const L=LEGAL[S.struct]||22, a=num(S.age);
+  const y = a>=L ? Math.floor(L*0.2) : Math.floor((L-a)+a*0.2);
+  return Math.max(2,y);
+}
+function chukaiFee(P){ if(S.direct||P<=0) return 0; return P<=8e6 ? 330000 : (P*0.03+60000)*1.1; }
+function SC(k){
+  const t=S.tx;
+  if(k==='pes') return {inc:1-num(t.pesInc)/100, cost:1+num(t.pesCost)/100};
+  if(k==='opt') return {inc:1+num(t.optInc)/100, cost:1-num(t.optCost)/100};
+  return {inc:1,cost:1};
+}
+function initial(method, sc, ov){
+  const it=[], c=costBase(), k=sc.cost;
+  if(S.mode==='buy'){
+    const P = ov.price!=null ? ov.price : num(S.price)*1e4;
+    const ev = evalVals(P), ch=chukaiFee(P);
+    it.push({g:'取得',n:'購入価格',a:P,k:'price'});
+    it.push({g:'取得',n:'仲介手数料（上限）',a:ch,k:'price'});
+    it.push({g:'取得',n:'登録免許税',a:ev.eL*num(S.tx.tourokuL)/100+ev.eB*num(S.tx.tourokuB)/100,k:'exp'});
+    it.push({g:'取得',n:'不動産取得税',a:ev.eL*0.5*num(S.tx.shutoku)/100+ev.eB*num(S.tx.shutoku)/100,k:'exp'});
+    it.push({g:'取得',n:'司法書士報酬',a:num(S.shihou)*1e4,k:'exp'});
+  }else{
+    const R = ov.rent||0, L=S.lease;
+    it.push({g:'借りる',n:'敷金（契約終了時に戻る）',a:R*num(L.shiki),k:'dep'});
+    it.push({g:'借りる',n:'礼金',a:R*num(L.rei),k:'exp'});
+    it.push({g:'借りる',n:'仲介手数料',a:R*num(L.chukai)*1.1,k:'exp'});
+  }
+  it.push({g:'使えるまで',n:'修繕・リフォーム',a:c.rep*k,k:'cap'});
+  it.push({g:'使えるまで',n:'解体・撤去',a:c.kaitai*k,k:'exp'});
+  it.push({g:'使えるまで',n:'不用品処分',a:c.fuy*k,k:'exp'});
+  it.push({g:'使えるまで',n:'草刈り・片付け',a:c.kus*k,k:'exp'});
+  it.push({g:'使えるまで',n:`予備費（${num(S.reserve)}%）`,a:c.res*k,k:'cap'});
+  if(method==='mp') it.push({g:'民泊の準備',n:'消防・家具家電・届出など',a:c.ms*k,k:'eq'});
+  return it.filter(x=>x.a>0.5);
+}
+function ops(method, ov, sc, f){
+  if(method==='mp'){
+    const m=S.mp, occ=num(ov.occ??m.occ)/100, days=LAWDAYS[m.law]*Math.min(occ,1);
+    const rate=num(ov.rate??m.rate);
+    const rev=days*rate*sc.inc*f;
+    const stays = num(m.stay)>0 ? days/num(m.stay) : days;
+    const opex = rev*(num(m.ota)+num(m.daiko)+num(m.reserveRate))/100 + stays*num(m.clean) + days*num(m.consum) + num(m.util)*12 + num(m.ins)*1e4;
+    return {rev, opex, days};
+  }
+  const c=S.ch, rent=num(ov.chRent??c.rent), occ=num(ov.chOcc??c.occ)/100;
+  const rev=rent*12*Math.min(occ,1)*sc.inc*f;
+  const opex=rev*(num(c.kanri)+num(c.reserveRate))/100 + num(c.ins)*1e4;
+  return {rev, opex};
+}
+function sim(method, scKey='std', ov={}){
+  const sc=SC(scKey), buy=S.mode==='buy';
+  const init=initial(method, sc, ov), total=sum(init,x=>x.a);
+  const H = buy ? 30 : Math.max(1,Math.round(num(S.lease.years)));
+  let bBasis=0, bLife=1, hold;
+  if(buy){
+    const P = ov.price!=null ? ov.price : num(S.price)*1e4, ev=evalVals(P);
+    bBasis = sum(init.filter(x=>x.k==='price'),x=>x.a)*ev.share; bLife=usedLife(); hold=koteiTax(ev);
+  }else hold=num(ov.rent)*12;
+  const capSum=sum(init.filter(x=>x.k==='cap'),x=>x.a), eqSum=sum(init.filter(x=>x.k==='eq'),x=>x.a);
+  const capLife = buy?Math.max(1,num(S.tx.repLife)):Math.max(1,Math.min(num(S.tx.repLife),H));
+  const eqLife  = buy?Math.max(1,num(S.tx.eqLife)):Math.max(1,Math.min(num(S.tx.eqLife),H));
+  const exp1=sum(init.filter(x=>x.k==='exp'),x=>x.a), deposit=sum(init.filter(x=>x.k==='dep'),x=>x.a);
+  const rate=num(S.tx.rate)/100, dec=num(S.tx.decline)/100;
+  const depOf = y => (y<=bLife?bBasis/bLife:0)+(y<=capLife?capSum/capLife:0)+(y<=eqLife?eqSum/eqLife:0);
+  let cum=-total, payback = total<=0?0:null, nol=0; const rows=[];
+  for(let y=1;y<=H;y++){
+    const f=Math.pow(1-dec,y-1), o=ops(method,ov,sc,f), dep=depOf(y);
+    const pre=o.rev-o.opex-hold-dep-(y===1?exp1:0);
+    let tax;
+    if(S.tx.offset) tax=pre*rate;
+    else { let t=pre; if(t<0){nol+=-t;t=0;} else {const u=Math.min(nol,t); nol-=u; t-=u;} tax=t*rate; }
+    const cf=o.rev-o.opex-hold-tax+(!buy&&y===H?deposit:0);
+    const prev=cum; cum+=cf;
+    if(payback==null && cum>=0) payback = y-1 + (cf>0 ? Math.min(1,-prev/cf) : 0);
+    rows.push({y,rev:o.rev,opex:o.opex,hold,dep,tax,cf,cum});
+  }
+  const o=ops(method,ov,sc,1), dep=depOf(2>H?1:2);
+  const noi=o.rev-o.opex-hold, tx=Math.max(0,noi-dep)*rate;
+  return {init,total,rows,payback,H,hold,steady:{rev:o.rev,opex:o.opex,hold,dep,tax:tx,noi,cf:noi-tx,days:o.days}};
+}
+/* 二分探索 */
+function maxOk(lo,hi,ok){ if(!ok(lo)) return null; if(ok(hi)) return hi; for(let i=0;i<48;i++){const m=(lo+hi)/2; ok(m)?lo=m:hi=m;} return lo; }
+function minOk(lo,hi,ok){ if(!ok(hi)) return null; if(ok(lo)) return lo; for(let i=0;i<48;i++){const m=(lo+hi)/2; ok(m)?hi=m:lo=m;} return hi; }
+const within=(r,t)=>r.payback!=null && r.payback<=t+1e-9;
+function target(method){ return num(method==='mp'?S.tx.tgtMp:S.tx.tgtCh); }
+
+function analyze(method){
+  const buy=S.mode==='buy', tgt=target(method);
+  const out={method, tgt};
+  let baseOv={};
+  if(!buy){
+    const H=Math.max(1,Math.round(num(S.lease.years)));
+    const t=Math.min(tgt,H);
+    out.rentTarget = maxOk(0,1e6,R=>within(sim(method,'std',{rent:R}),t));
+    out.rentTargetPes = maxOk(0,1e6,R=>within(sim(method,'pes',{rent:R}),t));
+    out.rentMax = maxOk(0,1e6,R=>within(sim(method,'std',{rent:R}),H));
+    out.offer = S.lease.offer!=='' && S.lease.offer!=null ? num(S.lease.offer) : null;
+    out.rentUsed = out.offer!=null ? out.offer : (out.rentTarget??0);
+    baseOv={rent:out.rentUsed};
+  }
+  out.std=sim(method,'std',baseOv); out.pes=sim(method,'pes',baseOv); out.opt=sim(method,'opt',baseOv);
+  if(buy){
+    out.maxPrice = maxOk(0,3e8,p=>within(sim(method,'std',{price:p}),tgt));
+    out.maxPricePes = maxOk(0,3e8,p=>within(sim(method,'pes',{price:p}),tgt));
+  }
+  const tgtEff = buy?tgt:Math.min(tgt,out.std.H);
+  if(method==='mp'){
+    out.needOcc = minOk(0,100,o=>within(sim('mp','std',{...baseOv,occ:o}),tgtEff));
+    out.exitOcc = minOk(0,100,o=>sim('mp','std',{...baseOv,occ:o}).steady.noi>=0);
+    out.needRate= minOk(0,300000,r=>within(sim('mp','std',{...baseOv,rate:r}),tgtEff));
+    out.exitRate= minOk(0,300000,r=>sim('mp','std',{...baseOv,rate:r}).steady.noi>=0);
+  }else{
+    out.needRent = minOk(0,1e6,r=>within(sim('ch','std',{...baseOv,chRent:r}),tgtEff));
+    out.exitRent = minOk(0,1e6,r=>sim('ch','std',{...baseOv,chRent:r}).steady.noi>=0);
+  }
+  out.judge = judge(out);
+  return out;
+}
+function judge(a){
+  const buy=S.mode==='buy', s=a.std, p=a.pes, t=a.tgt;
+  if(!buy && a.offer==null){
+    if(a.rentTarget==null||a.rentTarget<1) return {c:'no', j:'見送り', why:'家賃0円でも目標年数で回収できません。'};
+    return {c:'mid', j:'家賃しだい', why:`月${yen(Math.floor(a.rentTarget/100)*100)}以下で借りられれば目標${t}年で回収（下の「適正家賃」）。`};
+  }
+  if(s.steady.noi<=0) return {c:'no', j:'見送り・撤退', why:'運営しても毎年赤字になります。'};
+  if(s.payback==null) return {c:'no', j:'見送り', why: buy?'30年でも回収できません。':`契約期間${s.H}年のうちに回収できません。`};
+  const lim = buy?t:Math.min(t,s.H);
+  if(p.payback!=null && p.payback<=lim) return {c:'go', j:'GO', why:`悲観ケースでも${yrs(p.payback)}で回収（目標${lim}年以内）。`};
+  if(s.payback<=lim) return {c:'mid', j:'条件付きGO', why:`標準なら${yrs(s.payback)}ですが、悲観ケースだと${yrs(p.payback)}。収入の裏付けか費用の見積を固めてから。`};
+  return {c:'no', j:'見送り', why:`回収${yrs(s.payback)}で目標${lim}年を超えます。`};
+}
+
+/* ---------- 事例からの推定 ---------- */
+function median(a){ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y), m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; }
+function quant(a,q){ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y), i=(s.length-1)*q, lo=Math.floor(i), hi=Math.ceil(i); return s[lo]+(s[hi]-s[lo])*(i-lo); }
+function pickComps(type){
+  let c=COMPS.filter(x=>x.type===type && num(x.amount)>0);
+  const same=c.filter(x=>x.area===S.area); if(same.length>=2) c=same;
+  if(c.length>=4){ const near=c.filter(x=>x.age===''||x.age==null||Math.abs(num(x.age)-num(S.age))<=20); if(near.length>=3) c=near; }
+  return c;
+}
+function confLevel(c){
+  if(!c.length) return 0;
+  const strong=c.filter(x=>x.src==='own'||x.src==='mlit').length;
+  if(c.length>=6 && strong>=2) return 3;
+  if(c.length>=3 && strong>=1) return 2;
+  return 1;
+}
+const CONF_T=['事例なし','確度 低','確度 中','確度 高'];
+function estimate(type){
+  const c=pickComps(type); if(!c.length) return {n:0,conf:0};
+  const adj=x=>num(x.amount)*(x.src==='ad'?AD_ADJ[type]:1);
+  let vals=[];
+  if(type==='sale'){
+    vals=c.map(x=>{ const v=adj(x)*1e4, e=[];
+      if(num(x.land)>0&&num(S.land)>0) e.push(v/num(x.land)*num(S.land));
+      if(num(x.floor)>0&&num(S.floor)>0) e.push(v/num(x.floor)*num(S.floor));
+      return e.length?sum(e)/e.length:v; });
+  }else if(type==='rent'){
+    vals=c.map(x=> num(x.floor)>0&&num(S.floor)>0 ? adj(x)/num(x.floor)*num(S.floor) : adj(x));
+  }else vals=c.map(adj);
+  const out={n:c.length, conf:confLevel(c), mid:median(vals), lo:quant(vals,.25), hi:quant(vals,.75)};
+  if(type==='mp'){ const o=c.map(x=>num(x.occ)).filter(v=>v>0); out.occ=median(o); }
+  return out;
+}
+
+/* ===================================================================
+   画面：入力
+   =================================================================== */
+function fld(label,path,unit,o={}){
+  const v=getP(path); const ph=o.ph?` placeholder="${esc(o.ph)}"`:'';
+  const type=o.text?'text':'text';
+  return `<label class="f ${o.cls||''}"><span class="l">${label}</span><span class="in"><input type="${type}" ${o.text?'':'inputmode="decimal"'} data-p="${path}" value="${esc(v)}"${ph}>${unit?`<i>${unit}</i>`:''}</span>${o.help?`<small>${o.help}</small>`:''}</label>`;
+}
+function seg(path,opts){
+  const v=getP(path);
+  return `<div class="seg">${opts.map(([val,lab,sub])=>`<button type="button" data-set="${path}" data-v="${esc(JSON.stringify(val))}" aria-pressed="${v===val}">${lab}${sub?`<small>${sub}</small>`:''}</button>`).join('')}</div>`;
+}
+function chk(path,label){ return `<label class="chk"><input type="checkbox" data-chk="${path}" ${getP(path)?'checked':''}> ${label}</label>`; }
+function itemRow(it,bag,key){
+  const st=bag[it.id]||{lv:0};
+  const amt=itemAmt(it,st)/1e4;
+  return `<div class="item"><div class="h"><span class="n">${it.n}</span>
+    <div class="chips">${LV.map((l,i)=>`<button type="button" data-lv="${key}:${it.id}:${i}" aria-pressed="${(st.lv||0)===i}">${l}</button>`).join('')}</div></div>
+    ${st.lv?`<div class="amt"><span>${esc(it.d[st.lv-1])}</span><span style="margin-left:auto"></span>
+      <input inputmode="decimal" class="${st.q?'q':''}" data-amt="${key}:${it.id}" value="${Math.round(amt*10)/10}"> 万円
+      <span class="tag ${st.q?'q':''}">${st.q?'見積済':'目安'}</span>
+      ${st.q?`<button type="button" data-reset="${key}:${it.id}">目安に戻す</button>`:''}</div>`:''}
+  </div>`;
+}
+function renderForm(){
+  const buy=S.mode==='buy';
+  const h=[];
+  h.push(`<section class="step"><h2><span class="no">1</span>物件</h2><div class="grid">
+    ${fld('物件名・メモ','name','',{text:1,cls:'full',ph:'例：〇〇町 古民家'})}
+    <label class="f"><span class="l">地区</span><span class="in"><input type="text" list="areaList" data-p="area" value="${esc(S.area)}"></span><small>事例データの絞り込みに使います</small></label>
+    <label class="f"><span class="l">構造</span><span class="in"><select data-p="struct">
+      ${[['wood','木造'],['lgs','軽量鉄骨'],['rc','鉄筋コンクリート']].map(([v,l])=>`<option value="${v}" ${S.struct===v?'selected':''}>${l}</option>`).join('')}</select></span></label>
+    ${fld('土地','land','坪')}
+    ${fld('延床（建物）','floor','坪')}
+    ${fld('築年数','age','年')}
+  </div><datalist id="areaList">${AREAS.map(a=>`<option value="${a}">`).join('')}</datalist></section>`);
+
+  h.push(`<section class="step"><h2><span class="no">2</span>当社の取得方法</h2>
+    ${seg('mode',[['buy','購入する'],['lease','借りる','サブリース・転貸']])}
+    <div class="grid" style="margin-top:10px">
+    ${buy?`
+      ${fld('購入価格','price','万円',{cls:'full'})}
+      <div class="full" id="est-sale"></div>
+      ${fld('固定資産税評価額 土地','evalLand','万円',{ph:'わかれば',help:'納税通知書の課税明細'})}
+      ${fld('固定資産税評価額 建物','evalBldg','万円',{ph:'わかれば'})}
+      ${S.evalLand===''&&S.evalBldg===''?fld('価格のうち建物の割合','bldgRatio','%',{help:'評価額が不明なときの仮置き。古家は小さく'}):''}
+      ${fld('司法書士報酬','shihou','万円')}
+      <div class="full">${chk('direct','仲介なし（売主と直接取引）')}</div>
+    `:`
+      ${fld('先方の希望家賃','lease.offer','円/月',{cls:'full',ph:'空欄なら適正家賃を計算',help:'空欄にすると「いくらまでなら借りてよいか」を出します'})}
+      ${fld('契約期間','lease.years','年',{help:'この期間内に回収できるかで判定'})}
+      ${fld('敷金','lease.shiki','ヶ月')}
+      ${fld('礼金','lease.rei','ヶ月')}
+      ${fld('仲介手数料','lease.chukai','ヶ月')}
+      <p class="help full">借りた家に入れる改修費は貸主の物になります。原状回復の免除、転貸・民泊の承諾、中途解約の条件を契約書に入れてください。</p>
+    `}
+    </div></section>`);
+
+  const c=costBase();
+  h.push(`<section class="step"><h2><span class="no">3</span>使えるまでにかかる費用</h2>
+    <p class="help" style="margin:-4px 0 8px">状態を「軽・中・大」で選ぶと目安額が入ります。業者見積が出たら金額を書き換えると「見積済」になり、判定の確度が上がります。</p>
+    <div class="grp">修繕・リフォーム</div>
+    ${DEF.repairs.map(it=>itemRow(it,S.rep,'rep')).join('')}
+    <div class="grp">片付け・解体</div>
+    <div class="grid">
+      ${fld('不用品（軽トラ）','truck','台',{help:`1台 ${num(S.truckUnit).toLocaleString()}円（不用品処分の基準料金）`})}
+      ${fld('草刈り・片付け','kusakari','万円',{help:'<a href="../kusakari/" target="_blank">草刈り見積</a>で出した額'})}
+      ${fld('一部解体（離れ・倉庫など）','kaitaiTsubo','坪')}
+      ${fld('解体単価','kaitaiUnit','万円/坪')}
+      ${fld('付帯撤去（塀・庭石・浄化槽など）','futai','万円',{cls:'full'})}
+      ${fld('予備費','reserve','%',{cls:'full',help:'古い家は開けてから見つかる傷みが多い。目安15〜25%'})}
+    </div>
+    <div class="total"><span>使えるまで合計（予備費込）</span><b class="num" id="costTotal">${man(c.rep+c.kaitai+c.fuy+c.kus+c.res)}</b></div>
+  </section>`);
+
+  const mpOn=S.use.mp, chOn=S.use.ch;
+  h.push(`<section class="step"><h2><span class="no">4</span>活用方法</h2>
+    <p class="help" style="margin:-4px 0 4px">比べたい方法にチェック。数字は仮の値なので、実情に合わせて直してください。</p>
+    <div class="usecard ${mpOn?'':'off'}"><div class="uh"><span class="dot" style="background:var(--c-mp)"></span><b>民泊</b><span style="margin-left:auto">${chk('use.mp','比べる')}</span></div>
+      ${mpOn?`${seg('mp.law',[['shin','住宅宿泊事業','年180日まで'],['kan','簡易宿所','旅館業許可・通年']])}
+      <div class="grid" style="margin-top:10px">
+        ${fld('1泊の料金（1棟）','mp.rate','円')}
+        ${fld('稼働率','mp.occ','%',{help:`営業できる日（${LAWDAYS[S.mp.law]}日）のうち埋まる割合`})}
+        <div class="full" id="est-mp"></div>
+        ${fld('1組の平均泊数','mp.stay','泊')}
+        ${fld('清掃費','mp.clean','円/回')}
+        ${fld('予約サイト手数料','mp.ota','%')}
+        ${fld('運営代行','mp.daiko','%',{help:'自社運営なら0'})}
+        ${fld('光熱費・ネット','mp.util','円/月')}
+        ${fld('消耗品','mp.consum','円/泊')}
+        ${fld('保険','mp.ins','万円/年')}
+        ${fld('修繕の積立','mp.reserveRate','%',{help:'売上に対して'})}
+      </div>`:''}
+      ${mpOn?`<div class="grp" style="margin-top:12px">民泊だけにかかる準備費</div>${DEF.mpSetup.map(it=>itemRow(it,S.ms,'ms')).join('')}`:''}
+    </div>
+    <div class="usecard ${chOn?'':'off'}"><div class="uh"><span class="dot" style="background:var(--c-ch)"></span><b>${buy?'賃貸':'賃貸（サブリース＝又貸し）'}</b><span style="margin-left:auto">${chk('use.ch','比べる')}</span></div>
+      ${chOn?`<div class="grid">
+        ${fld(buy?'入居者からの家賃':'入居者から取る家賃','ch.rent','円/月')}
+        ${fld('入居率','ch.occ','%',{help:'空室期間を見込む'})}
+        <div class="full" id="est-rent"></div>
+        ${fld('管理費','ch.kanri','%',{help:'自社管理なら0'})}
+        ${fld('修繕の積立','ch.reserveRate','%')}
+        ${fld('保険','ch.ins','万円/年')}
+      </div>`:''}
+    </div>
+  </section>`);
+
+  h.push(`<details class="step" ${S._openTax?'open':''} id="taxBox"><summary><h2><span class="no">5</span>税金・目標・幅の設定</h2></summary>
+    <div class="grid">
+      ${fld('目標回収年数 民泊','tx.tgtMp','年')}
+      ${fld('目標回収年数 賃貸','tx.tgtCh','年')}
+      ${fld('法人税等（実効税率）','tx.rate','%')}
+      ${fld('収入の年々の目減り','tx.decline','%/年',{help:'田舎の古家は家賃が下がりやすい'})}
+      <div class="full">${chk('tx.offset','会社全体で黒字なので、赤字分は節税として数える')}</div>
+      <p class="help full" style="margin-top:-6px">オフ（既定）：この物件だけで税金を計算し、初年度の赤字は翌年以降に繰り越し。慎重な判定になります。</p>
+      ${buy?`
+      ${fld('固定資産税率','tx.kotei','%')}
+      ${fld('都市計画税率','tx.toshi','%',{help:'課税区域外なら0'})}
+      <div class="full">${chk('tx.tokurei','住宅用地の特例（家が建っている土地）')}</div>
+      ${fld('登録免許税 土地','tx.tourokuL','%')}
+      ${fld('登録免許税 建物','tx.tourokuB','%')}
+      ${fld('不動産取得税','tx.shutoku','%',{help:'土地は評価額の1/2に課税'})}`:''}
+      ${fld('改修費の償却年数','tx.repLife','年',{help:buy?'':'借りる場合は契約期間が上限'})}
+      ${fld('民泊設備の償却年数','tx.eqLife','年')}
+      ${fld('悲観：収入を','tx.pesInc','%減')}
+      ${fld('悲観：改修費を','tx.pesCost','%増')}
+      ${fld('楽観：収入を','tx.optInc','%増')}
+      ${fld('楽観：改修費を','tx.optCost','%減')}
+    </div>
+    <p class="help">${buy?`建物の減価償却は中古の簡便法で${usedLife()}年（${({wood:'木造',lgs:'軽量鉄骨',rc:'RC'})[S.struct]}・築${num(S.age)}年）。`:''}税額は概算です。実際の申告は税理士に確認してください。</p>
+  </details>`);
+  $('#form').innerHTML=h.join('');
+  $('#taxBox').addEventListener('toggle',e=>{S._openTax=e.target.open;});
+}
+
+/* ===================================================================
+   画面：結果
+   =================================================================== */
+const MNAME={mp:'民泊', ch:'賃貸'};
+function estBox(type, el){
+  const box=$(el); if(!box) return;
+  const e=estimate(type);
+  if(!e.n){ box.innerHTML=`<div class="est">事例データなし <span class="conf c0">${CONF_T[0]}</span>　<a href="#" data-gotab="comps">事例を登録</a>すると相場が出ます</div>`; return; }
+  let main='', btn='';
+  if(type==='sale'){ main=`相場 <b>${man(e.mid)}</b>（${man(e.lo)}〜${man(e.hi)}）`; btn=`<button type="button" data-use="price:${Math.round(e.mid/1e4)}">この値を使う</button>`; }
+  if(type==='rent'){ main=`相場 <b>${yen(Math.round(e.mid/100)*100)}</b>/月（${yen(Math.round(e.lo/100)*100)}〜${yen(Math.round(e.hi/100)*100)}）`; btn=`<button type="button" data-use="ch.rent:${Math.round(e.mid/100)*100}">この値を使う</button>`; }
+  if(type==='mp'){ main=`1泊 <b>${yen(Math.round(e.mid/100)*100)}</b>${e.occ?`・稼働 ${pct(e.occ)}`:''}`; btn=`<button type="button" data-use="mp.rate:${Math.round(e.mid/100)*100}${e.occ?`|mp.occ:${Math.round(e.occ)}`:''}">この値を使う</button>`; }
+  box.innerHTML=`<div class="est">${main} <span class="conf c${e.conf}">${CONF_T[e.conf]}・${e.n}件</span>${btn}</div>`;
+}
+function sekisan(){
+  if(S.mode!=='buy') return '';
+  const ev=evalVals(num(S.price)*1e4); if(!ev.given) return '';
+  const land=ev.eL/0.7;
+  return `<div class="est" style="margin-top:6px">評価額からの積算目安 <b>${man(land+ev.eB)}</b>（土地${man(land)}＋建物${man(ev.eB)}）<br><small>田舎の実取引は積算より安いことが多いので上限の目安として。</small></div>`;
+}
+function chart(results){
+  const W=640,Hh=260,pl=56,pr=14,pt=14,pb=34;
+  const maxY=Math.max(...results.map(a=>a.std.H));
+  let X=Math.min(maxY, Math.max(10, ...results.map(a=>Math.ceil((a.pes.payback??a.std.payback??10)+2))));
+  X=Math.min(X,maxY);
+  const pts=[];
+  results.forEach(a=>['std','pes'].forEach(k=>{ pts.push(-a[k].total); a[k].rows.slice(0,X).forEach(r=>pts.push(r.cum)); }));
+  let ymin=Math.min(0,...pts), ymax=Math.max(0,...pts); if(ymax-ymin<1) ymax=ymin+1;
+  const pad=(ymax-ymin)*.08; ymin-=pad; ymax+=pad;
+  const sx=y=>pl+(W-pl-pr)*y/X, sy=v=>pt+(Hh-pt-pb)*(1-(v-ymin)/(ymax-ymin));
+  const step=X<=12?1:X<=20?2:5;
+  let g='';
+  for(let y=0;y<=X;y+=step) g+=`<line x1="${sx(y)}" x2="${sx(y)}" y1="${pt}" y2="${Hh-pb}" stroke="var(--line)"/><text x="${sx(y)}" y="${Hh-pb+18}" font-size="12" text-anchor="middle" fill="var(--muted)">${y}</text>`;
+  const ticks=5; for(let i=0;i<=ticks;i++){ const v=ymin+(ymax-ymin)*i/ticks; g+=`<text x="${pl-6}" y="${sy(v)+4}" font-size="11" text-anchor="end" fill="var(--muted)">${Math.round(v/1e4).toLocaleString()}</text>`; }
+  g+=`<line x1="${pl}" x2="${W-pr}" y1="${sy(0)}" y2="${sy(0)}" stroke="var(--fg)" stroke-width="1.5"/>`;
+  g+=`<text x="${W-pr}" y="${Hh-4}" font-size="11" text-anchor="end" fill="var(--muted)">年</text><text x="4" y="${pt+4}" font-size="11" fill="var(--muted)">万円</text>`;
+  results.forEach(a=>{
+    const col=a.method==='mp'?'var(--c-mp)':'var(--c-ch)';
+    const tg=Math.min(a.tgt,a.std.H);
+    if(tg<=X) g+=`<line x1="${sx(tg)}" x2="${sx(tg)}" y1="${pt}" y2="${Hh-pb}" stroke="${col}" stroke-dasharray="2 4" stroke-width="1.5"/>`;
+    ['pes','std'].forEach(k=>{
+      const d=[[0,-a[k].total],...a[k].rows.slice(0,X).map(r=>[r.y,r.cum])].map(([x,v],i)=>`${i?'L':'M'}${sx(x).toFixed(1)},${sy(v).toFixed(1)}`).join('');
+      g+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${k==='std'?3:1.5}" ${k==='pes'?'stroke-dasharray="6 5" opacity=".8"':''}/>`;
+    });
+    if(a.std.payback!=null && a.std.payback<=X) g+=`<circle cx="${sx(a.std.payback)}" cy="${sy(0)}" r="5" fill="${col}" stroke="var(--panel)" stroke-width="2"/>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="累積の手残り（回収の推移）">${g}</svg>
+    <div class="legend">${results.map(a=>`<span><i style="background:${a.method==='mp'?'var(--c-mp)':'var(--c-ch)'}"></i>${MNAME[a.method]}</span>`).join('')}
+    <span><i style="background:repeating-linear-gradient(90deg,var(--muted) 0 6px,transparent 6px 10px)"></i>悲観</span><span>点線の縦線＝目標年数・●＝回収</span></div>`;
+}
+function costConfidence(){
+  const all=[...DEF.repairs.map(it=>S.rep[it.id]),...DEF.mpSetup.map(it=>S.ms[it.id])].filter(s=>s&&s.lv);
+  const q=all.filter(s=>s.q).length;
+  if(!all.length) return {lv:1, t:'修繕項目が未選択（状態を見ていない）'};
+  if(q===all.length) return {lv:3, t:`全${all.length}項目 見積済`};
+  if(q>0) return {lv:2, t:`${q}/${all.length}項目 見積済`};
+  return {lv:1, t:`${all.length}項目すべて目安（±30%程度ぶれる）`};
+}
+function renderResults(){
+  const methods=['mp','ch'].filter(m=>S.use[m]);
+  const res=$('#res');
+  if(!methods.length){ res.innerHTML=`<div class="panel empty">活用方法を1つ以上選んでください</div>`; $('#bandBody').innerHTML='活用方法を選んでください'; return; }
+  const buy=S.mode==='buy';
+  const A=methods.map(analyze);
+  const h=[`<h2 style="font-size:19px;margin:20px 0 10px">判定結果${S.name?`：${esc(S.name)}`:''}</h2>`];
+  A.forEach(a=>{
+    const s=a.std, j=a.judge, col=a.method==='mp'?'var(--c-mp)':'var(--c-ch)';
+    const rentNote = !buy ? (a.offer!=null?`家賃 月${yen(a.offer)}で計算`:(a.rentTarget==null||a.rentTarget<1?'家賃0円として計算':`適正家賃 月${yen(a.rentUsed)}で計算`)) : '';
+    h.push(`<div class="verdict ${j.c}">
+      <div class="vt"><span class="dot" style="background:${col}"></span><span class="m">${MNAME[a.method]}${!buy&&a.method==='ch'?'（サブリース）':''}</span><span class="j">${j.j}</span></div>
+      <div class="why">${j.why}${rentNote?`<br><small>${rentNote}</small>`:''}</div>
+      <div class="kpis">
+        <div class="kpi"><div class="k">回収（標準）</div><div class="v">${yrs(s.payback)}</div></div>
+        <div class="kpi"><div class="k">回収（悲観〜楽観）</div><div class="v" style="font-size:15px">${yrs(a.pes.payback)}<small> 〜 </small>${yrs(a.opt.payback)}</div></div>
+        <div class="kpi"><div class="k">年間の手残り</div><div class="v">${man(s.steady.cf)}</div></div>
+        <div class="kpi"><div class="k">初期費用</div><div class="v">${man(s.total)}</div></div>
+        <div class="kpi"><div class="k">年間の売上</div><div class="v">${man(s.steady.rev)}</div></div>
+        <div class="kpi"><div class="k">${buy?'実質利回り':'投資回収率/年'}</div><div class="v">${s.total>0?pct(s.steady.noi/s.total*100):'—'}</div></div>
+      </div>
+      <div class="key">
+        ${buy?`<div class="row"><span>この価格までなら買える（目標${a.tgt}年）</span><b>${a.maxPrice==null?'0円でも不可':man(a.maxPrice)}</b></div>
+               <div class="row"><span>悲観ケースでも安全な価格</span><b>${a.maxPricePes==null?'0円でも不可':man(a.maxPricePes)}</b></div>`:''}
+        ${!buy?`<div class="row"><span>適正家賃（目標${Math.min(a.tgt,s.H)}年で回収）</span><b>${a.rentTarget==null?'借りても不可':yen(Math.floor(a.rentTarget/100)*100)+'/月'}</b></div>
+                <div class="row"><span>悲観でも安全な家賃</span><b>${a.rentTargetPes==null?'悲観では不可':yen(Math.floor(a.rentTargetPes/100)*100)+'/月'}</b></div>
+                <div class="row"><span>上限家賃（契約${s.H}年でぎりぎり回収）</span><b>${a.rentMax==null?'—':yen(Math.floor(a.rentMax/100)*100)+'/月'}</b></div>`:''}
+        ${a.method==='mp'?`
+          <div class="row"><span>目標達成に必要な稼働率</span><b>${a.needOcc==null?'100%でも不足':pct(a.needOcc)}</b></div>
+          <div class="row"><span>　〃 必要な1泊料金（稼働${pct(num(S.mp.occ))}のまま）</span><b>${a.needRate==null?'—':yen(Math.ceil(a.needRate/100)*100)}</b></div>
+          <div class="row"><span>撤退ライン（これを下回ると毎年赤字）</span><b>稼働 ${a.exitOcc==null?'100%でも赤字':pct(a.exitOcc)}</b></div>`:`
+          <div class="row"><span>目標達成に必要な家賃（入居者から）</span><b>${a.needRent==null?'—':yen(Math.ceil(a.needRent/100)*100)+'/月'}</b></div>
+          <div class="row"><span>撤退ライン（これを下回ると毎年赤字）</span><b>${a.exitRent==null?'—':yen(Math.ceil(a.exitRent/100)*100)+'/月'}</b></div>`}
+      </div>
+    </div>`);
+  });
+
+  h.push(`<div class="panel chart"><h3 style="margin:0 0 6px">何年で回収できるか（累積の手残り）</h3>${chart(A)}</div>`);
+
+  // 初期費用の内訳
+  const groups={};
+  A.forEach(a=>a.std.init.forEach(x=>{ const key=x.g+'|'+x.n; (groups[key]=groups[key]||{g:x.g,n:x.n,v:{}}).v[a.method]=x.a; }));
+  h.push(`<div class="panel"><h3 style="margin:0">初期費用の内訳（標準）</h3><table class="t"><thead><tr><th>項目</th>${A.map(a=>`<th>${MNAME[a.method]}</th>`).join('')}</tr></thead><tbody>
+    ${Object.values(groups).map(r=>`<tr><td>${r.n}</td>${A.map(a=>`<td class="num">${r.v[a.method]?man(r.v[a.method]):'—'}</td>`).join('')}</tr>`).join('')}
+    <tr class="sum"><td>合計</td>${A.map(a=>`<td class="num">${man(a.std.total)}</td>`).join('')}</tr></tbody></table></div>`);
+
+  // 年間収支
+  h.push(`<div class="panel"><h3 style="margin:0">毎年の収支（標準・2年目の目安）</h3><table class="t"><thead><tr><th></th>${A.map(a=>`<th>${MNAME[a.method]}</th>`).join('')}</tr></thead><tbody>
+    <tr><td>売上${A.some(a=>a.method==='mp')?`<br><small style="color:var(--muted)">民泊 年${Math.round(A.find(a=>a.method==='mp')?.std.steady.days||0)}泊</small>`:''}</td>${A.map(a=>`<td class="num">${man(a.std.steady.rev)}</td>`).join('')}</tr>
+    <tr><td>運営経費</td>${A.map(a=>`<td class="num">−${man(a.std.steady.opex)}</td>`).join('')}</tr>
+    <tr><td>${buy?'固定資産税':'支払家賃'}</td>${A.map(a=>`<td class="num">−${man(a.std.steady.hold)}</td>`).join('')}</tr>
+    <tr><td>税引前の手残り</td>${A.map(a=>`<td class="num">${man(a.std.steady.noi)}</td>`).join('')}</tr>
+    <tr><td><small>（減価償却 ※現金は出ない）</small></td>${A.map(a=>`<td class="num"><small>${man(a.std.steady.dep)}</small></td>`).join('')}</tr>
+    <tr><td>法人税等</td>${A.map(a=>`<td class="num">−${man(a.std.steady.tax)}</td>`).join('')}</tr>
+    <tr class="sum"><td>税引後の手残り</td>${A.map(a=>`<td class="num">${man(a.std.steady.cf)}</td>`).join('')}</tr></tbody></table></div>`);
+
+  // 確度
+  const cc=costConfidence();
+  const inc=A.map(a=>{ const e=estimate(a.method==='mp'?'mp':'rent'); return `${MNAME[a.method]}の収入：<span class="conf c${e.conf}">${CONF_T[e.conf]}${e.n?`・${e.n}件`:''}</span>`; });
+  if(buy){ const e=estimate('sale'); inc.push(`購入価格：<span class="conf c${e.conf}">${CONF_T[e.conf]}${e.n?`・${e.n}件`:''}</span>`); }
+  h.push(`<div class="panel"><h3 style="margin:0 0 6px">この判定の確度</h3>
+    <div style="font-size:14px;display:grid;gap:4px"><div>改修費：<span class="conf c${cc.lv}">${['','確度 低','確度 中','確度 高'][cc.lv]}</span> ${cc.t}</div>${inc.map(x=>`<div>${x}</div>`).join('')}</div>
+    <ul class="notes">
+      <li>田舎は取引事例が少ないため、1つの数字ではなく「悲観〜楽観」の幅で判断します。悲観でもGOなら安心、標準だけGOなら条件付きです。</li>
+      <li>確度を上げる順番：①修繕の業者見積をとる → ②同じ地区の家賃・民泊の実績を事例に登録 → ③国交省の成約事例を登録。</li>
+      <li>売却時の値段（出口）は含めていません（保守的）。消費税は考慮していません。</li>
+    </ul></div>`);
+
+  h.push(`<div class="btns" style="margin-bottom:12px">
+    <button class="btn p" id="saveCase">この物件を保存</button>
+    <button class="btn" id="shareCase">共有用リンク</button>
+    <button class="btn" id="newCase">新しい物件</button></div>`);
+  res.innerHTML=h.join('');
+
+  $('#bandBody').innerHTML=A.map(a=>`<div class="bl"><span>${MNAME[a.method]}</span><span class="pill ${a.judge.c}">${a.judge.j}</span><span>回収</span><b>${yrs(a.std.payback)}</b></div>`).join('');
+}
+
+function recalc(){
+  const c=costBase(); const ct=$('#costTotal'); if(ct) ct.textContent=man(c.rep+c.kaitai+c.fuy+c.kus+c.res);
+  if(S.mode==='buy'){ estBox('sale','#est-sale'); const es=$('#est-sale'); if(es) es.insertAdjacentHTML('beforeend',sekisan()); }
+  if(S.use.mp) estBox('mp','#est-mp');
+  if(S.use.ch) estBox('rent','#est-rent');
+  renderResults();
+  LS.set('draft',{S,currentId});
+}
+function full(){ renderForm(); recalc(); }
+
+/* ---------- 入力イベント ---------- */
+const TEXT_PATHS=['name','area','struct'];
+const BLANKABLE=['evalLand','evalBldg','lease.offer'];
+$('#form').addEventListener('input',e=>{
+  const t=e.target;
+  if(t.dataset.p){
+    const p=t.dataset.p;
+    if(TEXT_PATHS.includes(p)) setP(p,t.value);
+    else if(BLANKABLE.includes(p) && t.value.trim()==='') setP(p,'');
+    else setP(p, t.value.trim()===''?0:num(t.value));
+    if(p==='struct'||(BLANKABLE.includes(p)&&(p!=='lease.offer'))){ /* 構造・評価額は表示が変わる */ }
+    recalc();
+  }
+  if(t.dataset.amt){
+    const [k,id]=t.dataset.amt.split(':'); const bag=k==='rep'?S.rep:S.ms;
+    bag[id]=bag[id]||{lv:1}; bag[id].amt=num(t.value); bag[id].q=true;
+    t.classList.add('q'); const tag=t.parentElement.querySelector('.tag'); if(tag){tag.textContent='見積済';tag.classList.add('q');}
+    recalc();
+  }
+});
+$('#form').addEventListener('change',e=>{
+  const t=e.target;
+  if(t.dataset.chk){ setP(t.dataset.chk,t.checked); full(); return; }
+  if(t.dataset.p==='struct'||t.dataset.p==='evalLand'||t.dataset.p==='evalBldg'||t.dataset.p==='age'){ const y=scrollY; full(); scrollTo(0,y); }
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button,a'); if(!b) return;
+  if(b.dataset.set){ setP(b.dataset.set, JSON.parse(b.dataset.v)); const y=scrollY; full(); scrollTo(0,y); return; }
+  if(b.dataset.lv){ const [k,id,lv]=b.dataset.lv.split(':'); const bag=k==='rep'?S.rep:S.ms; bag[id]={lv:+lv}; const y=scrollY; full(); scrollTo(0,y); return; }
+  if(b.dataset.reset){ const [k,id]=b.dataset.reset.split(':'); const bag=k==='rep'?S.rep:S.ms; bag[id]={lv:bag[id].lv}; const y=scrollY; full(); scrollTo(0,y); return; }
+  if(b.dataset.use){ b.dataset.use.split('|').forEach(kv=>{const [p,v]=kv.split(':'); setP(p,num(v));}); const y=scrollY; full(); scrollTo(0,y); toast('相場の値を入れました'); return; }
+  if(b.dataset.gotab){ e.preventDefault(); showTab(b.dataset.gotab); return; }
+  if(b.dataset.tab){ showTab(b.dataset.tab); return; }
+  if(b.id==='saveCase') return saveCase();
+  if(b.id==='shareCase') return shareCase();
+  if(b.id==='newCase'){ if(confirm('入力を消して新しい物件を始めますか？（保存済みの物件は残ります）')){ S=defaultState(); currentId=null; full(); scrollTo(0,0);} return; }
+});
+$('#band').addEventListener('click',()=>{ showTab('calc'); $('#res').scrollIntoView({behavior:'smooth'}); });
+
+function showTab(t){
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  ['calc','comps','saved'].forEach(v=>$('#v-'+v).hidden=v!==t);
+  $('#band').hidden=t!=='calc';
+  if(t==='comps') renderComps();
+  if(t==='saved') renderSaved();
+  if(t==='calc') full();
+  scrollTo(0,0);
+}
+
+/* ---------- 保存・共有 ---------- */
+function b64e(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64d(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return decodeURIComponent(escape(atob(s))); }
+function summaryOf(){
+  return ['mp','ch'].filter(m=>S.use[m]).map(m=>{ const a=analyze(m); return `${MNAME[m]} ${a.judge.j}・${yrs(a.std.payback)}`; }).join(' / ');
+}
+function saveCase(){
+  let name=S.name;
+  if(!name){ name=prompt('物件名を入れてください'); if(!name) return; S.name=name; }
+  const rec={id:currentId||('c'+Date.now()), name, at:new Date().toISOString(), mode:S.mode, summary:summaryOf(), S:JSON.parse(JSON.stringify(S))};
+  const i=CASES.findIndex(c=>c.id===rec.id); if(i>=0) CASES[i]=rec; else CASES.unshift(rec);
+  currentId=rec.id; LS.set('cases',CASES); full(); toast('保存しました');
+}
+async function shareCase(){
+  const data={...S}; delete data._openTax;
+  const url=location.origin+location.pathname+'#d='+b64e(JSON.stringify(data));
+  const title='事業性判定：'+(S.name||'物件');
+  try{ if(navigator.share){ await navigator.share({title,url}); return; } }catch(e){ if(e.name==='AbortError') return; }
+  try{ await navigator.clipboard.writeText(url); toast('リンクをコピーしました（LINE等に貼り付け）'); }
+  catch(e){ prompt('このリンクをコピーしてください',url); }
+}
+function renderSaved(){
+  const el=$('#savedList');
+  if(!CASES.length){ el.innerHTML=`<h3 style="margin:0 0 6px;font-size:16px">保存した物件</h3><div class="empty">まだありません。判定画面の下の「この物件を保存」で保存できます。</div>`; return; }
+  el.innerHTML=`<h3 style="margin:0 0 6px;font-size:16px">保存した物件（${CASES.length}件）</h3>`+CASES.map(c=>`<div class="rec"><div class="rt"><b>${esc(c.name)}</b><small>${c.mode==='buy'?'購入':'借りる'}・${esc(c.summary)}・${new Date(c.at).toLocaleDateString('ja-JP')}</small></div>
+    <button class="btn s p" data-open="${c.id}">開く</button><button class="btn s d" data-del="${c.id}">削除</button></div>`).join('');
+}
+$('#savedList').addEventListener('click',e=>{
+  const o=e.target.closest('[data-open]'), d=e.target.closest('[data-del]');
+  if(o){ const c=CASES.find(x=>x.id===o.dataset.open); S=merge(defaultState(),JSON.parse(JSON.stringify(c.S))); currentId=c.id; showTab('calc'); }
+  if(d){ const c=CASES.find(x=>x.id===d.dataset.del); if(confirm(`「${c.name}」を削除しますか？`)){ CASES=CASES.filter(x=>x.id!==c.id); LS.set('cases',CASES); if(currentId===c.id) currentId=null; renderSaved(); } }
+});
+
+/* ---------- 事例データ ---------- */
+let CF={type:'sale', area:'', land:'', floor:'', age:'', amount:'', occ:'', src:'own', year:new Date().getFullYear(), memo:''};
+function renderComps(){
+  const unit={sale:'万円（総額）',rent:'円/月',mp:'円/泊（1棟）'}[CF.type];
+  $('#compForm').innerHTML=`<h3 style="margin:0 0 8px;font-size:16px">事例を登録</h3>
+    <div class="seg" style="margin-bottom:10px">${[['sale','売買'],['rent','家賃'],['mp','民泊']].map(([v,l])=>`<button type="button" data-ct="${v}" aria-pressed="${CF.type===v}">${l}</button>`).join('')}</div>
+    <div class="grid">
+      <label class="f"><span class="l">地区</span><span class="in"><input type="text" list="areaList2" data-cf="area" value="${esc(CF.area||S.area)}"></span></label>
+      <label class="f"><span class="l">出典</span><span class="in"><select data-cf="src">${Object.entries(SRC).map(([k,v])=>`<option value="${k}" ${CF.src===k?'selected':''}>${v}</option>`).join('')}</select></span></label>
+      <label class="f full"><span class="l">${CF.type==='sale'?'価格':CF.type==='rent'?'家賃':'1泊の料金'}</span><span class="in"><input inputmode="decimal" data-cf="amount" value="${esc(CF.amount)}"><i>${unit}</i></span></label>
+      ${CF.type==='mp'?`<label class="f full"><span class="l">稼働率（わかれば）</span><span class="in"><input inputmode="decimal" data-cf="occ" value="${esc(CF.occ)}"><i>%</i></span></label>`:''}
+      <label class="f"><span class="l">土地</span><span class="in"><input inputmode="decimal" data-cf="land" value="${esc(CF.land)}"><i>坪</i></span></label>
+      <label class="f"><span class="l">延床</span><span class="in"><input inputmode="decimal" data-cf="floor" value="${esc(CF.floor)}"><i>坪</i></span></label>
+      <label class="f"><span class="l">築年数</span><span class="in"><input inputmode="decimal" data-cf="age" value="${esc(CF.age)}"><i>年</i></span></label>
+      <label class="f"><span class="l">時期</span><span class="in"><input inputmode="decimal" data-cf="year" value="${esc(CF.year)}"><i>年</i></span></label>
+      <label class="f full"><span class="l">メモ</span><span class="in"><input type="text" data-cf="memo" value="${esc(CF.memo)}" placeholder="所在・状態など"></span></label>
+    </div>
+    <datalist id="areaList2">${[...new Set([...AREAS,...COMPS.map(c=>c.area)].filter(Boolean))].map(a=>`<option value="${esc(a)}">`).join('')}</datalist>
+    <div class="btns" style="margin-top:10px"><button class="btn p" id="addComp">登録する</button></div>`;
+  const list=[...COMPS].sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+  const tl={sale:'売買',rent:'家賃',mp:'民泊'};
+  $('#compList').innerHTML=`<h3 style="margin:0 0 6px;font-size:16px">登録済みの事例（${COMPS.length}件）</h3>`+
+    (list.length?list.map(c=>`<div class="rec"><div class="rt"><b>${tl[c.type]}・${esc(c.area||'地区未設定')}・${c.type==='sale'?num(c.amount).toLocaleString()+'万円':yen(num(c.amount))}${c.type==='mp'&&c.occ?`・稼働${c.occ}%`:''}</b>
+      <small>${SRC[c.src]||''}・土地${c.land||'—'}坪・延床${c.floor||'—'}坪・築${c.age||'—'}年・${c.year||''}${c.memo?'・'+esc(c.memo):''}</small></div>
+      <button class="btn s d" data-cdel="${c.id}">削除</button></div>`).join(''):`<div class="empty">まだありません</div>`);
+}
+$('#v-comps').addEventListener('input',e=>{ const k=e.target.dataset.cf; if(k) CF[k]=e.target.value; });
+$('#v-comps').addEventListener('change',e=>{ const k=e.target.dataset.cf; if(k) CF[k]=e.target.value; });
+$('#v-comps').addEventListener('click',e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  if(t.dataset.ct){ CF.type=t.dataset.ct; renderComps(); }
+  if(t.id==='addComp'){
+    if(!(num(CF.amount)>0)){ toast('金額を入れてください'); return; }
+    if(!CF.area) CF.area=S.area;
+    COMPS.push({id:'k'+Date.now(), at:new Date().toISOString(), type:CF.type, area:CF.area.trim(), land:CF.land===''?'':num(CF.land), floor:CF.floor===''?'':num(CF.floor), age:CF.age===''?'':num(CF.age), amount:num(CF.amount), occ:CF.occ===''?'':num(CF.occ), src:CF.src, year:CF.year, memo:CF.memo});
+    LS.set('comps',COMPS); Object.assign(CF,{land:'',floor:'',age:'',amount:'',occ:'',memo:''}); renderComps(); toast('登録しました');
+  }
+  if(t.dataset.cdel){ if(confirm('この事例を削除しますか？')){ COMPS=COMPS.filter(c=>c.id!==t.dataset.cdel); LS.set('comps',COMPS); renderComps(); } }
+});
+
+/* ---------- 書き出し・読み込み ---------- */
+function download(name,text,type){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; document.body.append(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500); }
+$('#exportAll').onclick=()=>download(`事業性判定_${new Date().toISOString().slice(0,10)}.json`, JSON.stringify({app:'jigyosei',v:1,comps:COMPS,cases:CASES},null,1),'application/json');
+$('#exportCsv').onclick=()=>{
+  const head=['種別','地区','出典','金額','稼働率','土地坪','延床坪','築年数','時期','メモ'];
+  const rows=COMPS.map(c=>[{sale:'売買(万円)',rent:'家賃(円/月)',mp:'民泊(円/泊)'}[c.type],c.area,SRC[c.src],c.amount,c.occ,c.land,c.floor,c.age,c.year,c.memo]);
+  download('事例データ.csv','﻿'+[head,...rows].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n'),'text/csv');
+};
+$('#importAll').onclick=()=>$('#importFile').click();
+$('#importFile').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{
+    const d=JSON.parse(await f.text()); if(d.app!=='jigyosei') throw 0;
+    const cid=new Set(COMPS.map(c=>c.id)), sid=new Set(CASES.map(c=>c.id));
+    const nc=(d.comps||[]).filter(c=>!cid.has(c.id)), ns=(d.cases||[]).filter(c=>!sid.has(c.id));
+    COMPS.push(...nc); CASES.push(...ns); LS.set('comps',COMPS); LS.set('cases',CASES);
+    toast(`事例${nc.length}件・物件${ns.length}件を追加しました`); renderSaved();
+  }catch(err){ toast('読み込めませんでした（このアプリで書き出したファイルを選んでください）'); }
+  e.target.value='';
+};
+
+/* ---------- 起動 ---------- */
+(function init(){
+  const m=location.hash.match(/#d=([^&]+)/);
+  if(m){
+    try{ S=merge(defaultState(),JSON.parse(b64d(m[1]))); currentId=null; history.replaceState(null,'',location.pathname); toast('共有された物件を開きました'); }
+    catch(e){ toast('リンクが壊れています'); }
+  }else{
+    const d=LS.get('draft',null);
+    if(d&&d.S){ S=merge(defaultState(),d.S); currentId=d.currentId||null; }
+  }
+  full();
+})();
+</script>
+</body>
+</html>
